@@ -38,6 +38,9 @@ MAX_SYLLABLES = 7
 SYLLABLE_BITS = 9
 SYLLABLE_MASK = (1 << SYLLABLE_BITS) - 1
 
+# a phrase that covers more syllables beats per-character matches, but only just
+SYLLABLE_BONUS = 600
+
 
 def log(msg):
     print(msg, flush=True)
@@ -139,6 +142,37 @@ def report(entries, path):
     log("word length histogram: %s" % dict(sorted(lens.items())))
 
 
+def build_scorer(entries):
+    """Rank words without relying on the frequency column.
+
+    Only ~0.5% of the source lines carry a frequency (a per-reading relative
+    character frequency, higher = more common, 0.0 = no data). The rest is
+    ranked by a corpus proxy: how many dictionary entries a character appears
+    in. Common characters are everywhere in the word list, rare ones are not.
+    """
+    import math
+    from collections import Counter
+
+    proxy = Counter()
+    for word, _, _ in entries:
+        for ch in set(word):
+            proxy[ch] += 1
+    logs = {ch: math.log1p(n) for ch, n in proxy.items()}
+    lo = min(logs.values())
+    hi = max(logs.values())
+    span = (hi - lo) or 1.0
+    known = [f for _, _, f in entries if f != 0.0]
+    flo, fhi = (min(known), max(known)) if known else (0.0, 1.0)
+    fspan = (fhi - flo) or 1.0
+
+    def score(word, freq):
+        p = sum((logs.get(ch, 0.0) - lo) / span for ch in word) / len(word)
+        f = (freq - flo) / fspan if freq != 0.0 else p
+        return 0.6 * p + 0.4 * f
+
+    return score
+
+
 def pack(entries, out_path, max_per_key=40, min_freq=None):
     entries = list(entries)
     syllables = sorted({s for _, syl, _ in entries for s in syl})
@@ -147,6 +181,8 @@ def pack(entries, out_path, max_per_key=40, min_freq=None):
     syl_id = {s: i + 1 for i, s in enumerate(syllables)}
     log("distinct syllables: %d" % len(syllables))
 
+    score = build_scorer(entries)
+
     by_key = {}
     for word, syl, freq in entries:
         key = 0
@@ -154,7 +190,8 @@ def pack(entries, out_path, max_per_key=40, min_freq=None):
             key <<= SYLLABLE_BITS
             if i < len(syl):
                 key |= syl_id[syl[i]]
-        by_key.setdefault(key, []).append((word, freq))
+        bucket = by_key.setdefault(key, (len(syl), []))
+        bucket[1].append((word, freq))
     log("distinct pinyin keys: %d" % len(by_key))
 
     keys = sorted(by_key)
@@ -163,11 +200,14 @@ def pack(entries, out_path, max_per_key=40, min_freq=None):
     offsets = []
     dropped = 0
     for key in keys:
-        items = by_key[key]
+        nsyl, raw_items = by_key[key]
         if min_freq is not None:
-            items = [it for it in items if it[1] >= min_freq]
+            raw_items = [it for it in raw_items if it[1] >= min_freq]
         # ponytail: only the top N homophones are shipped, the tail is noise
-        items.sort(key=lambda it: -it[1])
+        items = sorted(
+            raw_items,
+            key=lambda it: -(min(0xFFFF, int(0xFFFF * score(it[0], it[1])) + SYLLABLE_BONUS * (nsyl - 1))),
+        )
         if len(items) > max_per_key:
             dropped += len(items) - max_per_key
             items = items[:max_per_key]
@@ -178,8 +218,8 @@ def pack(entries, out_path, max_per_key=40, min_freq=None):
         data += struct.pack("<H", len(items))
         for word, freq in items:
             raw = word.encode("utf-8")
-            score = int(freq) & 0xFFFF if freq >= 0 else 0
-            data += struct.pack("<B", len(raw)) + raw + struct.pack("<H", score)
+            value = min(0xFFFF, int(0xFFFF * score(word, freq)) + SYLLABLE_BONUS * (nsyl - 1))
+            data += struct.pack("<B", len(raw)) + raw + struct.pack("<H", value)
     log("shipped %d keys, dropped %d low ranked homophones" % (len(offsets), dropped))
 
     header = bytearray()

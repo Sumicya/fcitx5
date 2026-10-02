@@ -10,7 +10,7 @@ import android.widget.TextView
 
 class CandidateBar(
     context: Context,
-    private val onPick: (String) -> Unit,
+    private val onPick: (Int) -> Unit,
 ) : HorizontalScrollView(context) {
 
     private val row = LinearLayout(context).apply {
@@ -24,17 +24,19 @@ class CandidateBar(
 
     fun setCandidates(items: List<String>) {
         row.removeAllViews()
-        for (item in items) row.addView(itemView(item), LinearLayout.LayoutParams(WRAP, MATCH))
+        items.forEachIndexed { index, item ->
+            row.addView(itemView(item, index), LinearLayout.LayoutParams(WRAP, MATCH))
+        }
         scrollTo(0, 0)
     }
 
-    private fun itemView(text: String) = TextView(context).apply {
+    private fun itemView(text: String, index: Int) = TextView(context).apply {
         this.text = text
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
         gravity = Gravity.CENTER
         val p = (12 * resources.displayMetrics.density + 0.5f).toInt()
         setPadding(p, 0, p, 0)
-        setOnClickListener { onPick(text) }
+        setOnClickListener { onPick(index) }
     }
 
     private companion object {

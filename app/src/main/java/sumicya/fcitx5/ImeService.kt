@@ -5,25 +5,21 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.LinearLayout
-import sumicya.fcitx5.engine.Engine
+import sumicya.fcitx5.engine.PinyinEngine
 import sumicya.fcitx5.keyboard.Key
 import sumicya.fcitx5.keyboard.KeyboardView
 import sumicya.fcitx5.ui.CandidateBar
 
 class ImeService : InputMethodService() {
 
-    private val engine = Engine()
-    private var candidates: List<String> = emptyList()
+    private val engine by lazy { PinyinEngine(this) }
+    private var candidates: List<PinyinEngine.Candidate> = emptyList()
     private lateinit var keyboard: KeyboardView
     private lateinit var candidateBar: CandidateBar
 
     override fun onCreateInputView(): View {
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        candidateBar = CandidateBar(this) { text ->
-            commit(text)
-            engine.clear()
-            updateCandidates()
-        }
+        candidateBar = CandidateBar(this) { pick(it) }
         keyboard = KeyboardView(this).apply { listener = keyListener }
         root.addView(candidateBar, LinearLayout.LayoutParams(MATCH, dp(44)))
         root.addView(keyboard, LinearLayout.LayoutParams(MATCH, dp(216)))
@@ -50,7 +46,7 @@ class ImeService : InputMethodService() {
                 Key.Type.DELETE -> onDelete(gesture)
                 Key.Type.ENTER -> onEnter()
                 Key.Type.SPACE -> if (gesture == KeyboardView.Gesture.TAP) {
-                    if (engine.isComposing()) pick(0) else commit(" ")
+                    if (candidates.isNotEmpty()) pick(0) else commit(" ")
                 }
                 Key.Type.SHIFT -> keyboard.shift = !keyboard.shift
                 Key.Type.LAYER -> keyboard.toggleLayer()
@@ -79,12 +75,18 @@ class ImeService : InputMethodService() {
             val c = text[0]
             if (c.isLetter()) {
                 engine.type(c)
-                currentInputConnection?.setComposingText(engine.preeditText(), 1)
+                syncComposing()
                 updateCandidates()
+                return
+            }
+            // digits pick a candidate while composing, the way every IME does
+            if (engine.isComposing() && c.isDigit() && c != '0') {
+                pick(c - '1')
                 return
             }
             CN_PUNCTUATION[c]?.let {
                 commit(it.toString())
+                updateCandidates()
                 return
             }
         }
@@ -92,9 +94,9 @@ class ImeService : InputMethodService() {
     }
 
     private fun pick(index: Int) {
-        val word = candidates.getOrNull(index) ?: return
-        commit(word)
-        engine.clear()
+        val word = engine.pick(index) ?: return
+        currentInputConnection?.commitText(word, 1)
+        syncComposing()
         updateCandidates()
     }
 
@@ -107,16 +109,20 @@ class ImeService : InputMethodService() {
         ic.commitText(text, 1)
     }
 
+    private fun syncComposing() {
+        val ic = currentInputConnection ?: return
+        if (engine.isComposing()) ic.setComposingText(engine.preeditText(), 1) else ic.finishComposingText()
+    }
+
     private fun updateCandidates() {
         candidates = engine.candidates()
-        candidateBar.setCandidates(candidates)
+        candidateBar.setCandidates(candidates.map { it.word })
     }
 
     private fun onDelete(gesture: KeyboardView.Gesture) {
         if (engine.isComposing()) {
             engine.backspace()
-            val ic = currentInputConnection
-            if (engine.isComposing()) ic?.setComposingText(engine.preeditText(), 1) else ic?.finishComposingText()
+            syncComposing()
             updateCandidates()
             return
         }
@@ -125,13 +131,18 @@ class ImeService : InputMethodService() {
 
     private fun onEnter() {
         val ic = currentInputConnection ?: return
+        if (engine.isComposing()) {
+            ic.finishComposingText()
+            engine.clear()
+            updateCandidates()
+        }
         val info = currentInputEditorInfo
         val action = info.imeOptions and EditorInfo.IME_MASK_ACTION
         val noEnter = (info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION) != 0
         if (!noEnter && action != EditorInfo.IME_ACTION_NONE) {
             ic.performEditorAction(action)
         } else {
-            commit("\n")
+            ic.commitText("\n", 1)
         }
     }
 
@@ -142,10 +153,11 @@ class ImeService : InputMethodService() {
             val pending = engine.preeditText()
             engine.clear()
             commit(pending)
+            updateCandidates()
         }
     }
 
-    /** ponytail: cursor offset is derived from the text before the cursor, capped at 4096 chars. */
+    /** ponytail: the cursor offset comes from the text before it, capped at 4096 chars. */
     private fun moveCursor(delta: Int) {
         val ic = currentInputConnection ?: return
         val before = ic.getTextBeforeCursor(4096, 0) ?: return
