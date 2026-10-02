@@ -70,7 +70,7 @@ jobs:
           {
             echo "APK build failed on $(git rev-parse --short HEAD)"
             echo '### compiler errors'
-            grep -E '^(e:|w:)|error:|Unresolved reference|Script compilation|DICTDEBUG|FAILED|expected:' build.log | head -70
+            grep -E '^(e:|w:)|error:|Unresolved reference|Script compilation|DICTDEBUG|FAILED|expected:|Exception|at sumicya' build.log | head -80
             echo
             echo '### gradle failure digest'
             awk '/^FAILURE: Build failed/,0' build.log | grep -vE '^\s+at ' | head -60
