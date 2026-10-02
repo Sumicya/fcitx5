@@ -26,8 +26,8 @@ object Keys {
         Key(label, type, 0, null, weight)
 
     private val bottom = listOf(
-        fn(1.2f, "中", Key.Type.MODE), fn(1f, "☰", Key.Type.PANEL), ch(','),
-        fn(3.2f, " ", Key.Type.SPACE), ch('.'), fn(1.3f, "⏎", Key.Type.ENTER),
+        fn(1.2f, "中", Key.Type.MODE), fn(1f, "", Key.Type.PANEL), ch(','),
+        fn(3.2f, " ", Key.Type.SPACE), ch('.'), fn(1.3f, "", Key.Type.ENTER),
     )
 
     val qwerty = listOf(
@@ -40,10 +40,10 @@ object Keys {
             ch('h', "*"), ch('j', "/"), ch('k', "("), ch('l', ")"),
         ),
         listOf(
-            fn(1.4f, "⇧", Key.Type.SHIFT),
+            fn(1.4f, "", Key.Type.SHIFT),
             ch('z', "~"), ch('x', "-"), ch('c', "_"), ch('v', "+"),
             ch('b', "="), ch('n', "["), ch('m', "]"),
-            fn(1.4f, "⌫", Key.Type.DELETE),
+            fn(1.4f, "", Key.Type.DELETE),
         ),
         listOf(fn(1.3f, "?123", Key.Type.LAYER)) + bottom,
     )

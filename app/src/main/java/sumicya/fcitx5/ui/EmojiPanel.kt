@@ -1,6 +1,7 @@
 package sumicya.fcitx5.ui
 
 import android.content.Context
+import android.graphics.Typeface
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -15,32 +16,42 @@ class EmojiPanel(context: Context, private val onPick: (String) -> Unit) : Linea
 
     private val tabs = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
     private val body = ScrollView(context)
+    private val tabViews = mutableListOf<TextView>()
     private var group = 0
 
     init {
         orientation = LinearLayout.VERTICAL
-        addView(HorizontalScrollView(context).apply { addView(tabs) },
-            LinearLayout.LayoutParams(MATCH, dp(44)))
+        addView(
+            HorizontalScrollView(context).apply { addView(tabs) },
+            LinearLayout.LayoutParams(MATCH, Theme.dp(context, Theme.TOUCH))
+        )
         addView(body, LinearLayout.LayoutParams(MATCH, 0, 1f))
         buildTabs()
     }
 
     private fun buildTabs() {
         tabs.removeAllViews()
+        tabViews.clear()
         Emoji.groups.forEachIndexed { index, g ->
-            tabs.addView(TextView(context).apply {
+            val view = TextView(context).apply {
                 text = g.name
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, Theme.BODY_MEDIUM)
                 gravity = Gravity.CENTER
-                setPadding(dp(14), 0, dp(14), 0)
-                if (index == group) setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setOnClickListener {
-                    if (group != index) {
-                        group = index
-                        buildTabs()
-                    }
-                }
-            }, LinearLayout.LayoutParams(WRAP, MATCH))
+                val pad = Theme.dp(context, 12f)
+                setPadding(pad, 0, pad, 0)
+                setOnClickListener { select(index) }
+                Theme.clickable(this)
+            }
+            tabViews.add(view)
+            tabs.addView(view, LinearLayout.LayoutParams(WRAP, MATCH))
+        }
+        select(group)
+    }
+
+    private fun select(index: Int) {
+        group = index
+        for ((i, view) in tabViews.withIndex()) {
+            view.setTypeface(view.typeface, if (i == index) Typeface.BOLD else Typeface.NORMAL)
         }
         showGroup()
     }
@@ -55,7 +66,7 @@ class EmojiPanel(context: Context, private val onPick: (String) -> Unit) : Linea
                 val i = r * COLUMNS + c
                 row.addView(
                     if (i < items.size) cell(items[i]) else View(context),
-                    LinearLayout.LayoutParams(0, dp(48), 1f)
+                    LinearLayout.LayoutParams(0, Theme.dp(context, Theme.TOUCH), 1f)
                 )
             }
             grid.addView(row, LinearLayout.LayoutParams(MATCH, WRAP))
@@ -67,16 +78,18 @@ class EmojiPanel(context: Context, private val onPick: (String) -> Unit) : Linea
 
     private fun cell(emoji: String) = TextView(context).apply {
         text = emoji
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, 26f)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, EMOJI_SIZE)
         gravity = Gravity.CENTER
+        // the glyph is the whole content, so it is also what gets read out
+        contentDescription = emoji
         setOnClickListener { onPick(emoji) }
+        Theme.clickable(this)
     }
-
-    private fun dp(value: Int) = (value * resources.displayMetrics.density + 0.5f).toInt()
 
     private companion object {
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
         const val COLUMNS = 8
+        const val EMOJI_SIZE = 24f
     }
 }

@@ -2,9 +2,11 @@ package sumicya.fcitx5
 
 import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
+import android.os.Build
 import android.text.InputType
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.widget.LinearLayout
 import sumicya.fcitx5.data.ClipboardStore
@@ -13,6 +15,7 @@ import sumicya.fcitx5.keyboard.Key
 import sumicya.fcitx5.keyboard.KeyboardView
 import sumicya.fcitx5.ui.CandidateBar
 import sumicya.fcitx5.ui.Panel
+import sumicya.fcitx5.ui.Theme
 
 class ImeService : InputMethodService() {
 
@@ -39,12 +42,30 @@ class ImeService : InputMethodService() {
             onPin = { engine.phrases.add(it); showPhrases() }
             onRemove = { engine.phrases.remove(it); showPhrases() }
         }
-        root.addView(candidateBar, LinearLayout.LayoutParams(MATCH, dp(44f)))
+        root.addView(candidateBar, LinearLayout.LayoutParams(MATCH, dp(Theme.TOUCH)))
         root.addView(keyboard, LinearLayout.LayoutParams(MATCH, keyboardHeight()))
         root.addView(panel, LinearLayout.LayoutParams(MATCH, keyboardHeight()))
         panel.visibility = View.GONE
         updateCandidates()
+        // since Android 15 the input view is drawn behind the navigation bar and
+        // the framework no longer pads it, so the bar would sit on the bottom row
+        root.setOnApplyWindowInsetsListener { _, insets ->
+            applyBottomInset(insets)
+            insets
+        }
         return root
+    }
+
+    /** Keep the keys clear of the navigation bar, whatever the system reports. */
+    @Suppress("DEPRECATION")
+    private fun applyBottomInset(insets: WindowInsets) {
+        val reported = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            insets.getInsets(WindowInsets.Type.navigationBars()).bottom
+        } else {
+            insets.systemWindowInsetBottom
+        }
+        val pad = reported.coerceAtMost(dp(24f))
+        if (root.paddingBottom != pad) root.setPadding(0, 0, 0, pad)
     }
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {

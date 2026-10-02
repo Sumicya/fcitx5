@@ -10,7 +10,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 
-/** The ☰ panel: clipboard history, saved phrases and emoji, one row of tabs. */
+/** The menu panel: clipboard history, saved phrases and emoji, one row of tabs. */
 class Panel(
     context: Context,
     private val onPick: (String) -> Unit,
@@ -21,6 +21,7 @@ class Panel(
     private val phrase = PhrasePanel(context, onPick = { onPick(it) }, onRemove = { onRemove(it) })
     private val emoji = EmojiPanel(context) { onPick(it) }
     private val tabs = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+    private val tabViews = mutableListOf<TextView>()
     private var tab = 0
 
     /** Save the clip the user starred as a phrase. */
@@ -31,17 +32,21 @@ class Panel(
 
     init {
         orientation = LinearLayout.VERTICAL
-        tabs.addView(tabView("剪贴板", 0), LinearLayout.LayoutParams(WRAP, MATCH))
-        tabs.addView(tabView("常用", 1), LinearLayout.LayoutParams(WRAP, MATCH))
-        tabs.addView(tabView("表情", 2), LinearLayout.LayoutParams(WRAP, MATCH))
+        listOf("剪贴板", "常用", "表情").forEachIndexed { index, name ->
+            val view = tabView(name)
+            tabViews.add(view)
+            tabs.addView(view, LinearLayout.LayoutParams(WRAP, MATCH))
+        }
         tabs.addView(TextView(context).apply {
             text = "返回"
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, Theme.BODY_MEDIUM)
             gravity = Gravity.CENTER_VERTICAL or Gravity.END
-            setPadding(dp(14), 0, dp(14), 0)
+            val pad = Theme.dp(context, 16f)
+            setPadding(pad, 0, pad, 0)
             setOnClickListener { onClose() }
+            Theme.clickable(this)
         }, LinearLayout.LayoutParams(MATCH, MATCH))
-        addView(tabs, LinearLayout.LayoutParams(MATCH, dp(44)))
+        addView(tabs, LinearLayout.LayoutParams(MATCH, Theme.dp(context, Theme.TOUCH)))
         addView(FrameLayout(context).apply {
             addView(clip, FrameLayout.LayoutParams(MATCH, MATCH))
             addView(phrase, FrameLayout.LayoutParams(MATCH, MATCH))
@@ -54,13 +59,14 @@ class Panel(
 
     fun setPhrases(items: List<String>) = phrase.setItems(items)
 
-    private fun tabView(name: String, index: Int) = TextView(context).apply {
+    private fun tabView(name: String) = TextView(context).apply {
         text = name
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, Theme.BODY_MEDIUM)
         gravity = Gravity.CENTER
-        setPadding(dp(14), 0, dp(14), 0)
-        setTypeface(typeface, if (index == tab) Typeface.BOLD else Typeface.NORMAL)
-        setOnClickListener { select(index) }
+        val pad = Theme.dp(context, 16f)
+        setPadding(pad, 0, pad, 0)
+        setOnClickListener { select(tabViews.indexOf(this)) }
+        Theme.clickable(this)
     }
 
     private fun select(index: Int) {
@@ -68,13 +74,10 @@ class Panel(
         clip.visibility = if (index == 0) View.VISIBLE else View.GONE
         phrase.visibility = if (index == 1) View.VISIBLE else View.GONE
         emoji.visibility = if (index == 2) View.VISIBLE else View.GONE
-        for (i in 0 until tabs.childCount) {
-            val view = tabs.getChildAt(i) as? TextView ?: continue
+        for ((i, view) in tabViews.withIndex()) {
             view.setTypeface(view.typeface, if (i == index) Typeface.BOLD else Typeface.NORMAL)
         }
     }
-
-    private fun dp(value: Int) = (value * resources.displayMetrics.density + 0.5f).toInt()
 
     private companion object {
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
