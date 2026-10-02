@@ -25,6 +25,13 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
 }
 
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    testLogging {
+        showStandardStreams = true
+        showExceptions = true
+    }
+}
+
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17

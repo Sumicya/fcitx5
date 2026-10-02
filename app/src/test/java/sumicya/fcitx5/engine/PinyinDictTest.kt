@@ -29,14 +29,6 @@ class PinyinDictTest {
     }
 
     @Test
-    fun commonCharactersRankFirst() {
-        val dict = dict()
-        assertEquals("我", dict.lookup(listOf("wo")).firstOrNull()?.word)
-        assertEquals("的", dict.lookup(listOf("de")).firstOrNull()?.word)
-        assertEquals("你", dict.lookup(listOf("ni")).firstOrNull()?.word)
-    }
-
-    @Test
     fun commonWordsAreFound() {
         val dict = dict()
         assertTrue(dict.lookup(listOf("ni", "hao")).any { it.word == "你好" })
@@ -46,9 +38,27 @@ class PinyinDictTest {
     }
 
     @Test
+    fun dumpSingleSyllableKeys() {
+        val dict = dict()
+        for (syllable in listOf("wo", "de", "ni", "hao", "yi")) {
+            val entries = dict.lookup(listOf(syllable))
+            println("DICTDEBUG $syllable n=${entries.size} -> ${entries.take(10).map { "${it.word}:${it.score}" }}")
+        }
+    }
+
+    @Test
+    fun commonCharactersRankFirst() {
+        val dict = dict()
+        val top = { s: String -> dict.lookup(listOf(s)).firstOrNull()?.word }
+        assertEquals("DICTDEBUG first for wo", "我", top("wo"))
+        assertEquals("DICTDEBUG first for de", "的", top("de"))
+        assertEquals("DICTDEBUG first for ni", "你", top("ni"))
+    }
+
+    @Test
     fun candidatesAreOrderedByScore() {
         val dict = dict()
         val scores = dict.lookup(listOf("de")).map { it.score }
-        assertEquals(scores.sortedDescending(), scores)
+        assertEquals("DICTDEBUG de scores", scores.sortedDescending(), scores)
     }
 }
