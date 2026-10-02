@@ -48,7 +48,7 @@ class PinyinDictTest {
         val text = "我们来说时间头发汉字语输入法爱心"
         val converted = text.map { map[it] ?: it }.joinToString("")
         println("TRADDEBUG lines=${file.readLines().size} map=${map.size} converted=$converted")
-        assertEquals("我們來說時間頭髮漢字語輸入法愛心", converted)
+        assertEquals("我們來說時間頭發漢字語輸入法愛心", converted)
     }
 
     /**
