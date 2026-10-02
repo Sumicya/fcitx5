@@ -5,7 +5,7 @@ import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-/** Temporary: what the packed dictionary actually knows. Deleted after reading. */
+/** Temporary: is abbreviated pinyin already in the dictionary? Deleted after reading. */
 class ProbeTest {
 
     @Test
@@ -14,12 +14,16 @@ class ProbeTest {
         val buffer = ByteBuffer.wrap(file.readBytes()).order(ByteOrder.LITTLE_ENDIAN)
         val dict = PinyinDict.parse(buffer) ?: error("bad dict")
         val syl = dict.syllables
-        println("DICTDEBUG probe count=${syl.size}")
-        println("DICTDEBUG probe all=" + (1..syl.size).joinToString(" ") { syl.name(it) })
-        for (s in listOf("ui", "iu", "un", "u", "wei", "uei", "yh", "y", "h", "sh", "zh", "ch", "ng")) {
-            val id = syl.idOf(s)
-            val sample = if (id == 0) "-" else dict.lookup(listOf(s)).take(4).joinToString("") { it.word }
-            println("DICTDEBUG probe [$s] id=$id sample=$sample")
+        println("DICTDEBUG probe initials=" + ('A'..'Z').joinToString("") { "$it:${syl.idOf(it.toString())}" })
+        for (pair in listOf(
+            listOf("Y", "H"), listOf("N", "H"), listOf("W", "M"), listOf("S", "R", "F"),
+            listOf("Y", "H", "D"), listOf("N", "H", "M")
+        )) {
+            val words = dict.lookup(pair).take(8).joinToString("") { it.word }
+            println("DICTDEBUG probe [${pair.joinToString(" ")}] -> ${if (words.isEmpty()) "(nothing)" else words}")
+        }
+        for (s in listOf("wei", "you", "wen", "yi", "shi")) {
+            println("DICTDEBUG probe full[$s] -> " + dict.lookup(listOf(s)).take(6).joinToString("") { it.word })
         }
     }
 }
