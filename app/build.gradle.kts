@@ -25,6 +25,16 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
 }
 
+// The dictionary asset is generated, not committed: it is 5 MB of derived data
+// downloaded from download.fcitx-im.org, so building without it only needs the
+// network once.
+val generateDictionary = tasks.register<Exec>("generateDictionary") {
+    workingDir = rootProject.layout.projectDirectory
+    onlyIf { !rootProject.layout.projectDirectory.file("app/src/main/assets/pinyin.dict").asFile.exists() }
+    commandLine("python3", "scripts/build_dict.py")
+}
+tasks.named("preBuild") { dependsOn(generateDictionary) }
+
 tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
     testLogging {
         showStandardStreams = true

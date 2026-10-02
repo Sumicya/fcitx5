@@ -16,6 +16,7 @@ class PinyinEngine(context: Context) {
     var chinese: Boolean = true
 
     private val dict = PinyinDict.load(context)
+    private val user = UserDict(context)
     private val preedit = StringBuilder()
     private var candidates: List<Candidate> = emptyList()
 
@@ -45,10 +46,13 @@ class PinyinEngine(context: Context) {
     /** Commit the candidate at [index], dropping the syllables it covers. */
     fun pick(index: Int): String? {
         val candidate = candidates.getOrNull(index) ?: return null
+        user.bump(candidate.word)
         preedit.delete(0, candidate.consumed)
         refresh()
         return candidate.word
     }
+
+    fun save() = user.save()
 
     private fun refresh() {
         candidates = compute()
@@ -71,7 +75,7 @@ class PinyinEngine(context: Context) {
         val scored = ArrayList<Pair<String, Int>>(64)
         for (path in paths) {
             for (entry in table.lookup(table.keyOf(path.ids, path.length))) {
-                scored.add(entry.word to entry.score)
+                scored.add(entry.word to entry.score + pickedBonus(entry.word))
             }
         }
         scored.sortByDescending { it.second }
@@ -111,6 +115,11 @@ class PinyinEngine(context: Context) {
 
         walk(0, 0)
         return out
+    }
+
+    private fun pickedBonus(word: String): Int {
+        val count = user.count(word)
+        return if (count == 0) 0 else UserDict.PICKED_BONUS + count * UserDict.REPEAT_BONUS
     }
 
     private class Path(val ids: IntArray, val length: Int, val consumed: Int)

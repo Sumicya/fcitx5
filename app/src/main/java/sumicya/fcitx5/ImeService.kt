@@ -35,8 +35,14 @@ class ImeService : InputMethodService() {
 
     override fun onFinishInputView(finishingInput: Boolean) {
         engine.clear()
+        engine.save()
         currentInputConnection?.finishComposingText()
         super.onFinishInputView(finishingInput)
+    }
+
+    override fun onDestroy() {
+        engine.save()
+        super.onDestroy()
     }
 
     private val keyListener = object : KeyboardView.Listener {
