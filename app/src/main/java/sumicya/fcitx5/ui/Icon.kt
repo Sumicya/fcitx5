@@ -109,9 +109,11 @@ enum class Icon {
 
         fun star(out: Path) {
             val cx = 12f
-            val cy = 12f
-            val outer = 9f
-            val inner = 3.9f
+            // a five pointed star is taller above its centre than below, so the
+            // centre sits a little low to make the shape look centred
+            val cy = 12.9f
+            val outer = 9.5f
+            val inner = 4.1f
             for (i in 0 until 10) {
                 val r = if (i % 2 == 0) outer else inner
                 val a = Math.toRadians(-90.0 + i * 36.0)

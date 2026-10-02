@@ -13,6 +13,7 @@ import sumicya.fcitx5.data.ClipboardStore
 import sumicya.fcitx5.engine.PinyinEngine
 import sumicya.fcitx5.keyboard.Key
 import sumicya.fcitx5.keyboard.KeyboardView
+import sumicya.fcitx5.keyboard.Keys
 import sumicya.fcitx5.ui.CandidateBar
 import sumicya.fcitx5.ui.Panel
 import sumicya.fcitx5.ui.Theme
@@ -279,7 +280,11 @@ class ImeService : InputMethodService() {
     }
 
     private fun keyboardHeight(): Int {
-        val base = if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 180 else 216
+        val base = if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            Keys.HEIGHT_LANDSCAPE
+        } else {
+            Keys.HEIGHT_PORTRAIT
+        }
         return dp(base * Prefs.heightPercent(this) / 100f)
     }
 

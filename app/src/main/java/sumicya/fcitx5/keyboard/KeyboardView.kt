@@ -156,11 +156,10 @@ class KeyboardView(context: Context) : View(context) {
         keyTextSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, Theme.TITLE_LARGE, d)
         fnTextSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, Theme.TITLE_MEDIUM, d)
         hintTextSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, Theme.BODY_SMALL, d)
-        // padY and vGap are what is left after four 48dp rows: 4 * 48 + gaps
-        gap = 4f * d.density
-        vGap = 5f * d.density
-        padX = 3f * d.density
-        padY = 4f * d.density
+        gap = Keys.GAP * d.density
+        vGap = Keys.V_GAP * d.density
+        padX = Keys.PAD_X * d.density
+        padY = Keys.PAD_Y * d.density
         hintPad = 6f * d.density
         layoutKeys(w, h)
     }
@@ -169,7 +168,7 @@ class KeyboardView(context: Context) : View(context) {
         rects.clear()
         val rs = rows
         if (w <= 0 || h <= 0) return
-        val rowHeight = (h - padY * 2 - vGap * (rs.size - 1)) / rs.size
+        val rowHeight = Keys.rowHeight(h.toFloat(), rs.size, padY, vGap)
         var y = padY
         for (row in rs) {
             val total = row.sumOf { it.weight.toDouble() }.toFloat()

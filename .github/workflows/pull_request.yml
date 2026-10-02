@@ -80,7 +80,7 @@ jobs:
               echo '```'
               if [ -f build.log ]; then
                 echo '### ranking probe'
-                grep -E 'DICTDEBUG|TRADDEBUG' build.log | head -20
+                grep -E 'DICTDEBUG|TRADDEBUG|KEYDEBUG' build.log | head -20
               fi
               echo '### version'
               echo "${{ steps.version.outputs.name }}  versionCode=${{ steps.version.outputs.code }}"

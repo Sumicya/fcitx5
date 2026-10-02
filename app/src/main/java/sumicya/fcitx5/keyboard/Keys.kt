@@ -19,6 +19,26 @@ class Key(
 
 object Keys {
 
+    /** Default keyboard height, in dp. */
+    const val HEIGHT_PORTRAIT = 216f
+    const val HEIGHT_LANDSCAPE = 180f
+
+    /** Spacing, in dp: what is left of the height once the rows are 48dp. */
+    const val PAD_X = 3f
+    const val PAD_Y = 4f
+    const val GAP = 4f
+    const val V_GAP = 5f
+
+    /**
+     * Height of one of [rows] rows inside [height], in the same unit as the
+     * arguments.
+     *
+     * ponytail: it is a function and not an expression in the view so that a
+     * test can hold the keyboard to the 48dp touch target Material asks for.
+     */
+    fun rowHeight(height: Float, rows: Int, padY: Float = PAD_Y, vGap: Float = V_GAP) =
+        (height - padY * 2 - vGap * (rows - 1)) / rows
+
     private fun ch(c: Char, swipe: String? = null) =
         Key(c.toString(), Key.Type.CHAR, c.code, swipe)
 
