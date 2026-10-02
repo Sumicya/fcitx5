@@ -50,5 +50,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          { echo "CI failed on $(git rev-parse --short HEAD)"; echo '```'; tail -n 200 build.log | head -c 60000; echo '```'; } > /tmp/fail.txt
-          gh api -X POST "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" -F body=@/tmp/fail.txt
+          {
+            echo "CI failed on $(git rev-parse --short HEAD)"
+            echo '### compiler errors'
+            grep -E '^(e:|w:)|error:|Unresolved reference|Script compilation' build.log | head -60
+            echo
+            echo '### gradle failure digest'
+            awk '/^FAILURE: Build failed/,0' build.log | grep -vE '^\s+at ' | head -60
+            echo
+            echo '### causes'
+            grep -E 'Caused by:|Execution failed|What went wrong|Could not|Cannot|Failed to' build.log | head -40
+          } > /tmp/fail.txt
+          head -c 60000 /tmp/fail.txt > /tmp/fail-trim.txt
+          gh api -X POST "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" -F body=@/tmp/fail-trim.txt
