@@ -29,7 +29,7 @@ dependencies {
 // downloaded from download.fcitx-im.org, so building without it only needs the
 // network once.
 val generateDictionary = tasks.register<Exec>("generateDictionary") {
-    workingDir = rootProject.layout.projectDirectory
+    workingDir = rootProject.layout.projectDirectory.asFile
     onlyIf { !rootProject.layout.projectDirectory.file("app/src/main/assets/pinyin.dict").asFile.exists() }
     commandLine("python3", "scripts/build_dict.py")
 }
