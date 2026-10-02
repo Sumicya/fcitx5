@@ -67,6 +67,8 @@ jobs:
                 echo '### ranking probe'
                 grep -E 'DICTDEBUG|TRADDEBUG' build.log | head -20
               fi
+              echo '### apk size'
+              ls -l app/build/outputs/apk/debug/*.apk 2>/dev/null | awk '{printf "%.1f MB  %s\n", $5/1048576, $9}'
             } > /tmp/dict.txt
             gh api -X POST "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" -F body=@/tmp/dict.txt
           fi
