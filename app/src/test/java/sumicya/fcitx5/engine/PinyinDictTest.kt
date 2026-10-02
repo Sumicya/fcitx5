@@ -84,7 +84,9 @@ class PinyinDictTest {
         for (line in file.readLines()) {
             if (line.length >= 3) map[line[0]] = line.substring(2).split(" ")
         }
-        assertTrue("PYDEBUG ${map.size} characters", map.size > 30000)
+        // 26.7k: the single character entries of dict_sc.txt, minus the ones
+        // whose reading is more than one syllable
+        assertTrue("PYDEBUG ${map.size} characters", map.size > 25000)
         for (char in "我们来说时间头发汉字语输入法爱心") {
             assertTrue("PYDEBUG missing $char", char in map)
         }
