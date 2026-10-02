@@ -94,6 +94,8 @@ class KeyboardView(context: Context) : View(context) {
     private var pressProgress = 0f
     private var pressAnimator: ValueAnimator? = null
 
+    /** The finger that owns the gesture; the others are ignored while it lasts. */
+    private var pointerId = MotionEvent.INVALID_POINTER_ID
     private var startX = 0f
     private var startY = 0f
     private var fired = false
@@ -284,11 +286,17 @@ class KeyboardView(context: Context) : View(context) {
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                val key = hit(event.x, event.y) ?: return true
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                // a second finger while one is already down gets no key of its
+                // own: two thumbs type faster than one gesture can follow, and
+                // the alternative is dropping the first finger's key instead
+                if (pointerId != MotionEvent.INVALID_POINTER_ID) return true
+                val index = event.actionIndex
+                val key = hit(event.getX(index), event.getY(index)) ?: return true
+                pointerId = event.getPointerId(index)
                 active = key
-                startX = event.x
-                startY = event.y
+                startX = event.getX(index)
+                startY = event.getY(index)
                 fired = false
                 dragSteps = 0
                 haptic()
@@ -297,9 +305,11 @@ class KeyboardView(context: Context) : View(context) {
             }
 
             MotionEvent.ACTION_MOVE -> {
+                val index = event.findPointerIndex(pointerId)
+                if (index < 0) return true
                 val key = active ?: return true
-                val dx = event.x - startX
-                val dy = event.y - startY
+                val dx = event.getX(index) - startX
+                val dy = event.getY(index) - startY
                 if (key.type == Key.Type.SPACE) {
                     val step = (abs(dx) / (16f * resources.displayMetrics.density)).toInt()
                     val signed = if (dx >= 0) step else -step
@@ -324,7 +334,8 @@ class KeyboardView(context: Context) : View(context) {
                 }
             }
 
-            MotionEvent.ACTION_UP -> {
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+                if (event.getPointerId(event.actionIndex) != pointerId) return true
                 val key = active
                 if (key != null && !fired) listener?.onKey(key, Gesture.TAP)
                 clearTouch()
@@ -337,6 +348,7 @@ class KeyboardView(context: Context) : View(context) {
 
     private fun clearTouch() {
         active = null
+        pointerId = MotionEvent.INVALID_POINTER_ID
         fired = false
         dragSteps = 0
         animatePress(false)

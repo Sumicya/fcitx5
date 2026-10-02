@@ -19,7 +19,7 @@ class ClipboardStore(context: Context) {
 
     init {
         if (file.exists()) {
-            file.readLines().forEach { if (it.isNotEmpty()) items.add(it) }
+            file.readLines().forEach { if (it.isNotEmpty()) items.add(ClipLines.unescape(it)) }
         }
     }
 
@@ -47,7 +47,7 @@ class ClipboardStore(context: Context) {
         val tmp = File(file.parentFile, "$FILE.tmp")
         try {
             tmp.printWriter().use { out ->
-                for (item in items) out.println(item)
+                for (item in items) out.println(ClipLines.escape(item))
             }
             tmp.renameTo(file)
         } catch (e: Exception) {
@@ -55,7 +55,7 @@ class ClipboardStore(context: Context) {
         }
     }
 
-    companion object {
-        private const val FILE = "clip.txt"
+    private companion object {
+        const val FILE = "clip.txt"
     }
 }
