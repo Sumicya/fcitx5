@@ -88,19 +88,19 @@ jobs:
               for apk in app/build/outputs/apk/debug/*.apk; do
                 [ -f "$apk" ] || continue
                 echo "$(ls -l "$apk" | awk '{printf "%.1f MB", $5/1048576}')  $apk"
-              python3 - "$apk" <<'PYEOF'
-              import re, sys, zipfile
-              # the manifest string pool is utf-16, so strings(1) misses it
-              with zipfile.ZipFile(sys.argv[1]) as z:
-                  raw = z.read("AndroidManifest.xml")
-              for enc in ("utf-16-le", "utf-8"):
-                  found = re.search(r"\d{2}\.\d{1,2}\.\d{1,2}\.\d+", raw.decode(enc, "replace"))
-                  if found:
-                      print("versionName inside apk:", found.group(0))
-                      break
-              else:
-                  print("versionName inside apk: not found")
-              PYEOF
+          python3 - "$apk" <<'PYEOF' || true
+          import re, sys, zipfile
+          # the manifest string pool is utf-16, so strings(1) misses it
+          with zipfile.ZipFile(sys.argv[1]) as z:
+              raw = z.read("AndroidManifest.xml")
+          for enc in ("utf-16-le", "utf-8"):
+              found = re.search(r"\d{2}\.\d{1,2}\.\d{1,2}\.\d+", raw.decode(enc, "replace"))
+              if found:
+                  print("versionName inside apk:", found.group(0))
+                  break
+          else:
+              print("versionName inside apk: not found")
+          PYEOF
               done
             } > /tmp/dict.txt
             gh api -X POST "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" -F body=@/tmp/dict.txt
