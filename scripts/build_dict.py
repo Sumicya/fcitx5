@@ -106,10 +106,19 @@ def parse(path):
     log("parsed %d entries, skipped %d lines" % (kept, skipped))
 
 
-def report(entries):
+def report(entries, path):
     if not entries:
         sys.exit("no entries parsed")
     log("total entries: %d" % len(entries))
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        raw = fh.read().splitlines()
+    log("first 12 raw lines: %s" % raw[:12])
+    log("last 6 raw lines: %s" % raw[-6:])
+    for probe in ("的", "我", "一", "你好", "㝵"):
+        log("raw lines for %s: %s" % (probe, [l for l in raw if l.split() and l.split()[0] == probe][:4]))
+    zero = sum(1 for e in entries if e[2] == 0.0)
+    log("freq buckets: zero=%d negative=%d positive=%d" % (
+        zero, sum(1 for e in entries if e[2] < 0), sum(1 for e in entries if e[2] > 0)))
     freqs = [f for _, _, f in entries]
     log("freq min=%r max=%r" % (min(freqs), max(freqs)))
     by_word = {}
@@ -214,7 +223,7 @@ def main():
     log("dictionary text: %s (%d bytes)" % (txt, os.path.getsize(txt)))
 
     entries = list(parse(txt))
-    report(entries)
+    report(entries, txt)
     pack(entries, OUT_PATH, args.max_per_key, args.min_freq)
 
 
