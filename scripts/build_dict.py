@@ -106,8 +106,7 @@ def parse(path):
     log("parsed %d entries, skipped %d lines" % (kept, skipped))
 
 
-def explore(path):
-    entries = list(parse(path))
+def report(entries):
     if not entries:
         sys.exit("no entries parsed")
     log("total entries: %d" % len(entries))
@@ -129,10 +128,10 @@ def explore(path):
     for word, _, _ in entries:
         lens[len(word)] = lens.get(len(word), 0) + 1
     log("word length histogram: %s" % dict(sorted(lens.items())))
-    sys.exit("explore mode: stopping here on purpose")
 
 
 def pack(entries, out_path, max_per_key=40, min_freq=None):
+    entries = list(entries)
     syllables = sorted({s for _, syl, _ in entries for s in syl})
     if len(syllables) > SYLLABLE_MASK:
         sys.exit("too many distinct syllables: %d" % len(syllables))
@@ -204,7 +203,6 @@ def pack(entries, out_path, max_per_key=40, min_freq=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--explore", action="store_true")
     ap.add_argument("--max-per-key", type=int, default=40)
     ap.add_argument("--min-freq", type=float, default=None)
     args = ap.parse_args()
@@ -215,9 +213,9 @@ def main():
     txt = untar_zst(archive, workdir)
     log("dictionary text: %s (%d bytes)" % (txt, os.path.getsize(txt)))
 
-    if args.explore:
-        explore(txt)
-    pack(parse(txt), OUT_PATH, args.max_per_key, args.min_freq)
+    entries = list(parse(txt))
+    report(entries)
+    pack(entries, OUT_PATH, args.max_per_key, args.min_freq)
 
 
 if __name__ == "__main__":

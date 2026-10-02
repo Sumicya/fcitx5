@@ -34,7 +34,7 @@ jobs:
         id: dict
         run: |
           set -o pipefail
-          python3 scripts/build_dict.py ${{ vars.DICT_ARGS }} 2>&1 | tee dict.log
+          python3 scripts/build_dict.py 2>&1 | tee dict.log
 
       - name: Build debug APK
         id: apk
