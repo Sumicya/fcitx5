@@ -41,6 +41,7 @@ class PinyinDictTest {
     fun dumpSingleSyllableKeys() {
         val dict = dict()
         for (syllable in listOf("wo", "de", "ni", "hao", "yi")) {
+            println("DICTDEBUG ${syllable} raw ${dict.debugLookup(listOf(syllable))}")
             val entries = try {
                 dict.lookup(listOf(syllable))
             } catch (e: Exception) {

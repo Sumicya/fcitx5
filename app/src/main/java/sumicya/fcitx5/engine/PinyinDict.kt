@@ -58,6 +58,28 @@ class PinyinDict private constructor(
         return emptyList()
     }
 
+    /** Temporary: dumps the raw bytes a lookup lands on. */
+    internal fun debugLookup(words: List<String>): String {
+        val ids = IntArray(Syllables.MAX_PER_WORD)
+        val length = minOf(words.size, Syllables.MAX_PER_WORD)
+        for (i in 0 until length) ids[i] = syllables.idOf(words[i])
+        val key = keyOf(ids, length)
+        var lo = 0
+        var hi = count - 1
+        var mid = -1
+        while (lo <= hi) {
+            mid = (lo + hi) ushr 1
+            val cmp = java.lang.Long.compareUnsigned(buffer.getLong(keysStart + mid * 8), key)
+            if (cmp < 0) lo = mid + 1 else if (cmp > 0) hi = mid - 1 else break
+        }
+        if (mid < 0) return "not found"
+        val offset = buffer.getInt(offsetsStart + mid * 4)
+        val start = dataStart + offset
+        val hex = (0 until 12).joinToString(" ") { "%02x".format(buffer.get(start + it)) }
+        return "key=%016x index=%d/%d offset=%d start=%d keysStart=%d offsetsStart=%d dataStart=%d bytes=[%s]".format(
+            key, mid, count, offset, start, keysStart, offsetsStart, dataStart, hex)
+    }
+
     private fun entriesAt(offset: Int): List<Entry> {
         val view = buffer.duplicate()
         view.position(dataStart + offset)
