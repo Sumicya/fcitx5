@@ -57,9 +57,8 @@ class Panel(
         clip.visibility = if (index == 0) View.VISIBLE else View.GONE
         emoji.visibility = if (index == 1) View.VISIBLE else View.GONE
         for (i in 0 until tabs.childCount) {
-            (tabs.getChildAt(i) as? TextView)?.setTypeface(
-                typeface, if (i == index) Typeface.BOLD else Typeface.NORMAL
-            )
+            val view = tabs.getChildAt(i) as? TextView ?: continue
+            view.setTypeface(view.typeface, if (i == index) Typeface.BOLD else Typeface.NORMAL)
         }
     }
 
