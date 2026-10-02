@@ -38,33 +38,24 @@ class PinyinDictTest {
     }
 
     @Test
-    fun dumpSingleSyllableKeys() {
-        val dict = dict()
-        for (syllable in listOf("wo", "de", "ni", "hao", "yi")) {
-            println("DICTDEBUG ${syllable} raw ${dict.debugLookup(listOf(syllable))}")
-            val entries = try {
-                dict.lookup(listOf(syllable))
-            } catch (e: Exception) {
-                println("DICTDEBUG $syllable THREW $e")
-                emptyList<PinyinDict.Entry>()
-            }
-            println("DICTDEBUG $syllable n=${entries.size} -> ${entries.take(10).map { "${it.word}:${it.score}" }}")
-        }
-    }
-
-    @Test
     fun commonCharactersRankFirst() {
         val dict = dict()
-        val top = { s: String -> dict.lookup(listOf(s)).firstOrNull()?.word }
-        assertEquals("DICTDEBUG first for wo", "我", top("wo"))
-        assertEquals("DICTDEBUG first for de", "的", top("de"))
-        assertEquals("DICTDEBUG first for ni", "你", top("ni"))
+        assertEquals("DICTDEBUG first for wo", "我", dict.lookup(listOf("wo")).firstOrNull()?.word)
+        assertEquals("DICTDEBUG first for de", "的", dict.lookup(listOf("de")).firstOrNull()?.word)
+        assertEquals("DICTDEBUG first for ni", "你", dict.lookup(listOf("ni")).firstOrNull()?.word)
     }
 
     @Test
     fun candidatesAreOrderedByScore() {
         val dict = dict()
-        val scores = dict.lookup(listOf("de")).map { it.score }
-        assertEquals("DICTDEBUG de scores", scores.sortedDescending(), scores)
+        for (syllable in listOf("wo", "de", "ni", "yi", "hao")) {
+            val entries = dict.lookup(listOf(syllable))
+            // 40 is the packer's per-key cap, so a bigger list means the count
+            // or the offsets are being decoded wrong
+            assertTrue("DICTDEBUG $syllable has ${entries.size} entries", entries.size in 1..40)
+            val scores = entries.map { it.score }
+            assertEquals("DICTDEBUG $syllable scores", scores.sortedDescending(), scores)
+            println("DICTDEBUG $syllable -> ${entries.take(6).map { "${it.word}:${it.score}" }}")
+        }
     }
 }
