@@ -128,19 +128,19 @@ def report(entries, path):
 
 
 def build_scorer(entries):
-    """Rank words without a corpus.
+    """Rank words with no corpus at hand.
 
-    Two signals, both derived from the dictionary itself:
+    Two weak signals, averaged because neither survives on its own:
 
-    1. how many entries a character appears in, refined once: a character is
-       common when it appears in *common* entries. Plain entry counts put 尼
-       (a thousand place names) above 你 (你好, 你们); weighting each entry by
-       how common its own characters are flips that back.
-    2. the frequency column of the source, when it carries one. Only ~0.5% of
-       the lines do, and positive values are artifacts of characters whose
-       whole count was attached to a rare reading (挝 as in 老挝), so only
-       negative values are used: they are relative frequencies, closer to zero
-       is more common.
+    1. how many entries a character appears in, and how common the entries it
+       appears in are. Counts alone rank 尼 (a thousand place names) above 你
+       (你好, 你们); averaging in the quality of the containing entries pulls
+       characters back that only show up in a few very common words.
+    2. the frequency column of the source, for the ~0.5% of lines that carry
+       one. Only negative values are used: positive ones are artifacts of
+       characters whose whole count was attached to a rare reading (挝 as in
+       老挝), and even the negative ones are only half trustworthy (they claim
+       倭 outranks 涡), so they never get more weight than the first signal.
     """
     import math
     from collections import Counter
@@ -154,25 +154,28 @@ def build_scorer(entries):
     for word, _, _ in entries:
         for ch in set(word):
             counts[ch] += 1
-    char = normalise({ch: math.log1p(n) for ch, n in counts.items()})
+    spread = normalise({ch: math.log1p(n) for ch, n in counts.items()})
 
-    for _ in range(REFINE_PASSES):
-        acc = Counter()
-        for word, _, _ in entries:
-            quality = sum(char.get(ch, 0.0) for ch in word) / len(word)
-            for ch in set(word):
-                acc[ch] += quality
-        char = normalise({ch: math.log1p(v) for ch, v in acc.items()})
+    totals = Counter()
+    seen = Counter()
+    for word, _, _ in entries:
+        quality = sum(spread.get(ch, 0.0) for ch in word) / len(word)
+        for ch in set(word):
+            totals[ch] += quality
+            seen[ch] += 1
+    company = normalise({ch: totals[ch] / seen[ch] for ch in seen})
+
+    char = {ch: 0.5 * spread.get(ch, 0.0) + 0.5 * company.get(ch, 0.0) for ch in counts}
 
     known = [f for _, _, f in entries if f < 0.0]
     flo, fhi = (min(known), max(known)) if known else (0.0, 1.0)
     fspan = (fhi - flo) or 1.0
-    log("ranked with %d real character frequencies" % len(known))
+    log("ranked with %d source character frequencies" % len(known))
 
     def score(word, freq):
         p = sum(char.get(ch, 0.0) for ch in word) / len(word)
         f = (freq - flo) / fspan if freq < 0.0 else p
-        return 0.75 * f + 0.25 * p
+        return 0.5 * (f + p)
 
     return score
 
