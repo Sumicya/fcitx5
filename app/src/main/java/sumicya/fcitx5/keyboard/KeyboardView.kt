@@ -1,20 +1,30 @@
 package sumicya.fcitx5.keyboard
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.Typeface
 import android.util.TypedValue
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
+import android.view.animation.DecelerateInterpolator
+import android.view.animation.OvershootInterpolator
 import sumicya.fcitx5.Prefs
 import kotlin.math.abs
 
 /**
- * Hand-drawn keyboard: monochrome, no shadows, one accent color.
+ * Hand-drawn keyboard in the Material 3 Expressive shape language: large
+ * corner radii, pill shaped space and enter keys, and a springy press instead
+ * of a flat highlight.
+ *
+ * The colors are the theme's own Material 3 roles, so on Android 12+ the
+ * keyboard picks up the wallpaper palette like the rest of the phone.
  * Tap types the key, swiping up types its secondary symbol (no long press).
  */
 class KeyboardView(context: Context) : View(context) {
@@ -47,8 +57,14 @@ class KeyboardView(context: Context) : View(context) {
     private val rects = mutableListOf<Pair<Key, RectF>>()
 
     private val keyPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
-    private val hintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+    }
+    private val hintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+    }
 
     private var radius = 0f
     private var keyTextSize = 0f
@@ -57,7 +73,13 @@ class KeyboardView(context: Context) : View(context) {
     private var padX = 0f
     private var padY = 0f
 
+    /** The key under the finger, for gestures. */
     private var active: Key? = null
+    /** The key drawn as pressed; it outlives the touch so the spring can settle. */
+    private var pressedKey: Key? = null
+    private var pressProgress = 0f
+    private var pressAnimator: ValueAnimator? = null
+
     private var startX = 0f
     private var startY = 0f
     private var fired = false
@@ -77,25 +99,54 @@ class KeyboardView(context: Context) : View(context) {
             ?: ((resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK)
                     == Configuration.UI_MODE_NIGHT_YES)
 
-    /** The theme's accent, so the keyboard follows dynamic color too. */
-    private val accent: Int by lazy {
-        val value = TypedValue()
-        if (context.theme.resolveAttribute(android.R.attr.colorAccent, value, true)) {
-            value.data
+    private class Palette(
+        val surface: Int, val key: Int, val keyVariant: Int, val pressed: Int,
+        val onSurface: Int, val onSurfaceVariant: Int,
+        val primary: Int, val onPrimary: Int
+    )
+
+    private var palette: Palette? = null
+    private var paletteDark: Boolean? = null
+
+    private fun palette(): Palette {
+        val dark = isDark
+        if (palette == null || paletteDark != dark) {
+            paletteDark = dark
+            palette = buildPalette(dark)
+        }
+        return palette!!
+    }
+
+    /** Material 3 color roles, with the M3 baseline palette as the fallback. */
+    private fun buildPalette(dark: Boolean) = Palette(
+        surface = role(com.google.android.material.R.attr.colorSurfaceContainerLow, 0xF3EDF7, 0x1D1B20),
+        key = role(com.google.android.material.R.attr.colorSurfaceContainerHigh, 0xE7E0EC, 0x322F35),
+        keyVariant = role(com.google.android.material.R.attr.colorSurfaceContainerHighest, 0xE6E0E9, 0x3B383E),
+        pressed = role(com.google.android.material.R.attr.colorSecondaryContainer, 0xDAD2FB, 0x4A4458),
+        onSurface = role(com.google.android.material.R.attr.colorOnSurface, 0x1D1B20, 0xE6E0E9),
+        onSurfaceVariant = role(com.google.android.material.R.attr.colorOnSurfaceVariant, 0x625B71, 0xCAC4D0),
+        primary = role(com.google.android.material.R.attr.colorPrimary, 0x6750A4, 0xD0BCFF),
+        onPrimary = role(com.google.android.material.R.attr.colorOnPrimary, 0xFFFFFF, 0x381E72)
+    )
+
+    private fun role(attr: Int, lightFallback: Int, darkFallback: Int): Int {
+        val tv = TypedValue()
+        return if (context.theme.resolveAttribute(attr, tv, true)) {
+            tv.data
         } else {
-            Color.rgb(0x1A, 0x73, 0xE8)
+            if (isDark) darkFallback else lightFallback
         }
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         val d = resources.displayMetrics
-        radius = 4f * d.density
-        keyTextSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 18f, d)
-        gap = 3f * d.density
-        vGap = 6f * d.density
+        radius = 12f * d.density
+        keyTextSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 19f, d)
+        gap = 4f * d.density
+        vGap = 7f * d.density
         padX = 3f * d.density
-        padY = 4f * d.density
+        padY = 5f * d.density
         layoutKeys(w, h)
     }
 
@@ -119,21 +170,28 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     override fun onDraw(canvas: Canvas) {
-        canvas.drawColor(if (isDark) Color.rgb(0x12, 0x12, 0x12) else Color.WHITE)
-        val dark = isDark
-        val current = active
+        val p = palette()
+        canvas.drawColor(p.surface)
         for ((key, r) in rects) {
-            val pressed = key === current || (key.type == Key.Type.SHIFT && shift)
+            val pressed = key === pressedKey || (key.type == Key.Type.SHIFT && shift)
+            val scale = if (key === pressedKey) 1f - PRESS_DEPTH * pressProgress else 1f
+            canvas.save()
+            if (scale != 1f) canvas.scale(scale, scale, r.centerX(), r.centerY())
+
+            val accent = key.type == Key.Type.ENTER
             keyPaint.color = when {
-                pressed -> if (dark) Color.rgb(0x3C, 0x3C, 0x3C) else Color.rgb(0xD6, 0xD8, 0xDA)
-                dark -> Color.rgb(0x26, 0x26, 0x26)
-                else -> Color.rgb(0xF1, 0xF1, 0xF1)
+                accent -> p.primary
+                pressed -> p.pressed
+                key.type == Key.Type.CHAR -> p.key
+                else -> p.keyVariant
             }
-            canvas.drawRoundRect(r, radius, radius, keyPaint)
+            // MD3 Expressive: the wide keys are pills, the rest are soft squares
+            val rr = if (key.type == Key.Type.SPACE || accent) r.height() / 2f else radius
+            canvas.drawRoundRect(r, rr, rr, keyPaint)
 
             val label = labelOf(key)
             if (label.isNotBlank()) {
-                textPaint.color = if (key.type == Key.Type.ENTER) accent else if (dark) Color.rgb(0xEC, 0xEC, 0xEC) else Color.rgb(0x20, 0x21, 0x24)
+                textPaint.color = if (accent) p.onPrimary else p.onSurface
                 textPaint.textSize = if (key.type == Key.Type.CHAR) keyTextSize else keyTextSize * 0.85f
                 val fm = textPaint.fontMetrics
                 canvas.drawText(label, r.centerX(), r.centerY() - (fm.ascent + fm.descent) / 2f, textPaint)
@@ -141,10 +199,16 @@ class KeyboardView(context: Context) : View(context) {
 
             val hint = if (key.type == Key.Type.CHAR) key.swipe else null
             if (hint != null && !pressed) {
-                hintPaint.color = if (dark) Color.rgb(0x8A, 0x8A, 0x8A) else Color.rgb(0x9A, 0x9A, 0x9A)
-                hintPaint.textSize = keyTextSize * 0.6f
-                canvas.drawText(hint, r.right - 8f * resources.displayMetrics.density, r.top + 16f * resources.displayMetrics.density, hintPaint)
+                hintPaint.color = p.onSurfaceVariant
+                hintPaint.textSize = keyTextSize * 0.62f
+                canvas.drawText(
+                    hint,
+                    r.right - 9f * resources.displayMetrics.density,
+                    r.top + 17f * resources.displayMetrics.density,
+                    hintPaint
+                )
             }
+            canvas.restore()
         }
     }
 
@@ -154,6 +218,30 @@ class KeyboardView(context: Context) : View(context) {
         Key.Type.LAYER -> if (layer == Layer.LETTERS) "?123" else "ABC"
         Key.Type.SPACE -> ""
         else -> key.label
+    }
+
+    /** Springy press: the key overshoots on the way in and settles on the way out. */
+    private fun animatePress(down: Boolean) {
+        pressAnimator?.cancel()
+        if (down) pressedKey = active
+        val animator = ValueAnimator.ofFloat(pressProgress, if (down) 1f else 0f).apply {
+            duration = if (down) 180L else 130L
+            interpolator = if (down) OvershootInterpolator(2.2f) else DecelerateInterpolator(1.5f)
+            addUpdateListener {
+                pressProgress = it.animatedValue as Float
+                invalidate()
+            }
+            if (!down) {
+                addListener(object : AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: Animator) {
+                        pressedKey = null
+                        invalidate()
+                    }
+                })
+            }
+        }
+        pressAnimator = animator
+        animator.start()
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -166,6 +254,7 @@ class KeyboardView(context: Context) : View(context) {
                 fired = false
                 dragSteps = 0
                 haptic()
+                animatePress(true)
                 invalidate()
             }
 
@@ -186,6 +275,7 @@ class KeyboardView(context: Context) : View(context) {
                 if (!fired && (abs(dx) > threshold || abs(dy) > threshold)) {
                     fired = true
                     active = null
+                    animatePress(false)
                     val gesture = if (abs(dx) > abs(dy)) {
                         if (dx < 0) Gesture.SWIPE_LEFT else Gesture.SWIPE_RIGHT
                     } else {
@@ -211,6 +301,7 @@ class KeyboardView(context: Context) : View(context) {
         active = null
         fired = false
         dragSteps = 0
+        animatePress(false)
         invalidate()
     }
 
@@ -227,5 +318,7 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private companion object {
+        /** How far a pressed key dips, as a fraction of its size. */
+        const val PRESS_DEPTH = 0.06f
     }
 }
