@@ -337,6 +337,7 @@ def load_variants():
 
 def pack_variants(pairs):
     """Simplified -> traditional, one character per line, for Trad.kt."""
+    os.makedirs(os.path.dirname(ST_OUT), exist_ok=True)
     with open(ST_OUT, "w", encoding="utf-8") as fh:
         fh.write("\n".join("%s\t%s" % pair for pair in pairs) + "\n")
     log("wrote %s (%d mappings)" % (ST_OUT, len(pairs)))
