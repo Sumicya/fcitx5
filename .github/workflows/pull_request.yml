@@ -31,9 +31,13 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build dictionary
-        run: python3 scripts/build_dict.py --explore
+        id: dict
+        run: |
+          set -o pipefail
+          python3 scripts/build_dict.py ${{ vars.DICT_ARGS }} 2>&1 | tee dict.log
 
       - name: Build debug APK
+        id: apk
         run: |
           set -o pipefail
           ./gradlew :app:assembleDebug --stacktrace 2>&1 | tee build.log
@@ -46,23 +50,30 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
 
       # The sandbox that drives this repo cannot reach the Actions log endpoint,
-      # so the failure tail is posted as a commit comment where it can be read
-      # back through api.github.com.
-      - name: Report failure log
-        if: failure()
+      # so output is echoed back through commit comments, which are readable
+      # with api.github.com. Remove these two steps once the build is stable.
+      - name: Report dictionary output
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -s dict.log ]; then
+            { echo "dictionary step: ${{ steps.dict.outcome }}"; echo '```'; tail -c 6000 dict.log; echo '```'; } > /tmp/dict.txt
+            gh api -X POST "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" -F body=@/tmp/dict.txt
+          fi
+
+      - name: Report build failure
+        if: failure() && steps.apk.outcome == 'failure'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           {
-            echo "CI failed on $(git rev-parse --short HEAD)"
+            echo "APK build failed on $(git rev-parse --short HEAD)"
             echo '### compiler errors'
             grep -E '^(e:|w:)|error:|Unresolved reference|Script compilation' build.log | head -60
             echo
             echo '### gradle failure digest'
             awk '/^FAILURE: Build failed/,0' build.log | grep -vE '^\s+at ' | head -60
-            echo
-            echo '### causes'
-            grep -E 'Caused by:|Execution failed|What went wrong|Could not|Cannot|Failed to' build.log | head -40
           } > /tmp/fail.txt
           head -c 60000 /tmp/fail.txt > /tmp/fail-trim.txt
           gh api -X POST "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" -F body=@/tmp/fail-trim.txt
