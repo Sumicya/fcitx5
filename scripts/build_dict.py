@@ -40,6 +40,7 @@ SYLLABLE_MASK = (1 << SYLLABLE_BITS) - 1
 
 # a phrase that covers more syllables beats per-character matches, but only just
 SYLLABLE_BONUS = 600
+REFINE_PASSES = 2
 
 
 def log(msg):
@@ -127,32 +128,51 @@ def report(entries, path):
 
 
 def build_scorer(entries):
-    """Rank words without relying on the frequency column.
+    """Rank words without a corpus.
 
-    Only ~0.5% of the source lines carry a frequency (a per-reading relative
-    character frequency, higher = more common, 0.0 = no data). The rest is
-    ranked by a corpus proxy: how many dictionary entries a character appears
-    in. Common characters are everywhere in the word list, rare ones are not.
+    Two signals, both derived from the dictionary itself:
+
+    1. how many entries a character appears in, refined once: a character is
+       common when it appears in *common* entries. Plain entry counts put 尼
+       (a thousand place names) above 你 (你好, 你们); weighting each entry by
+       how common its own characters are flips that back.
+    2. the frequency column of the source, when it carries one. Only ~0.5% of
+       the lines do, and positive values are artifacts of characters whose
+       whole count was attached to a rare reading (挝 as in 老挝), so only
+       negative values are used: they are relative frequencies, closer to zero
+       is more common.
     """
     import math
     from collections import Counter
 
-    proxy = Counter()
+    def normalise(values):
+        lo, hi = min(values.values()), max(values.values())
+        span = (hi - lo) or 1.0
+        return {k: (v - lo) / span for k, v in values.items()}
+
+    counts = Counter()
     for word, _, _ in entries:
         for ch in set(word):
-            proxy[ch] += 1
-    logs = {ch: math.log1p(n) for ch, n in proxy.items()}
-    lo = min(logs.values())
-    hi = max(logs.values())
-    span = (hi - lo) or 1.0
-    known = [f for _, _, f in entries if f != 0.0]
+            counts[ch] += 1
+    char = normalise({ch: math.log1p(n) for ch, n in counts.items()})
+
+    for _ in range(REFINE_PASSES):
+        acc = Counter()
+        for word, _, _ in entries:
+            quality = sum(char.get(ch, 0.0) for ch in word) / len(word)
+            for ch in set(word):
+                acc[ch] += quality
+        char = normalise({ch: math.log1p(v) for ch, v in acc.items()})
+
+    known = [f for _, _, f in entries if f < 0.0]
     flo, fhi = (min(known), max(known)) if known else (0.0, 1.0)
     fspan = (fhi - flo) or 1.0
+    log("ranked with %d real character frequencies" % len(known))
 
     def score(word, freq):
-        p = sum((logs.get(ch, 0.0) - lo) / span for ch in word) / len(word)
-        f = (freq - flo) / fspan if freq != 0.0 else p
-        return 0.6 * p + 0.4 * f
+        p = sum(char.get(ch, 0.0) for ch in word) / len(word)
+        f = (freq - flo) / fspan if freq < 0.0 else p
+        return 0.75 * f + 0.25 * p
 
     return score
 
