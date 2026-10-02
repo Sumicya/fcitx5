@@ -31,6 +31,7 @@ class ClipboardStore(context: Context) {
             ?.takeIf { it.itemCount > 0 }
             ?.getItemAt(0)?.text?.toString()
             ?.takeIf { it.isNotBlank() } ?: return
+        if (items.firstOrNull() == text) return
         items.remove(text)
         items.add(0, text)
         save()

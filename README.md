@@ -1,7 +1,8 @@
 # fcitx5-android（纯 Kotlin 重写版）
 
 [Fcitx5](https://github.com/fcitx/fcitx5) 的官方拼音词库 + RIME 的真实语料词频 + 一个从零手写的 Android 输入法。
-**没有 C++，没有 NDK，没有 JNI，没有插件系统**：整个 APK 是 Kotlin，只有一个模块、零第三方依赖。
+**没有 C++，没有 NDK，没有 JNI，没有插件系统**：整个 APK 是 Kotlin，只有一个模块、
+一个依赖（Material 3 Expressive，只用在设置界面；输入法本身连它都不用）。
 
 ## 为什么重写
 
@@ -22,6 +23,7 @@
 | 中文标点 | `,` `.` `?` `!` `:` `;` `(` `)` 自动转全角 |
 | 体积 | 单词典数据（构建期生成，5.4 MB），无 native 库 |
 | 平台 | minSdk 26（Android 8+），全 ABI（纯 Kotlin 零成本） |
+| 界面 | 设置界面用 Material 3 Expressive（`com.google.android.material:material`），跟随系统动态取色；键盘是手写 Canvas，不依赖它 |
 | 包名 | `sumicya.fcitx5` |
 
 还没做：模糊音、双拼、滑行输入（上滑只用来出符号）。

@@ -22,6 +22,9 @@ android {
 }
 
 dependencies {
+    // the one and only third party dependency: Material 3 Expressive, so the
+    // settings screen uses the same components as everything else on the phone
+    implementation(libs.material)
     testImplementation("junit:junit:4.13.2")
 }
 

@@ -32,6 +32,8 @@
     <string name="pref_digit_pick">数字键选词</string>
     <string name="pref_digit_pick_summary">拼音输入时用 1–9 直接选候选</string>
 
+    <string name="theme_note">说明</string>
+    <string name="theme_note_summary">键盘和设置界面一起切换；除跟随系统外都是强制值</string>
     <string name="theme_system">跟随系统</string>
     <string name="theme_light">浅色</string>
     <string name="theme_dark">深色</string>

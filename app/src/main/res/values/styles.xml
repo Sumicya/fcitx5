@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- DeviceDefault follows the device, so on a Pixel this is Material You
-         with the user's own colors, and elsewhere it is whatever the OEM
-         ships. No Material Components dependency needed for that. -->
-    <style name="AppTheme" parent="android:style/Theme.DeviceDefault.Light.NoActionBar" />
+    <!-- DayNight handles light and dark, DynamicColors picks up the wallpaper
+         palette on Android 12+, Material3Expressive brings the 2025 shapes. -->
+    <style name="AppTheme" parent="Theme.Material3Expressive.DynamicColors.DayNight.NoActionBar" />
 </resources>

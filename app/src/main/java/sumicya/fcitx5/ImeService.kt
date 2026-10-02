@@ -51,6 +51,7 @@ class ImeService : InputMethodService() {
         super.onStartInputView(info, restarting)
         engine.clear()
         engine.traditional = Prefs.traditional(this)
+        applyHeight()
         fieldOverridden = false
         applyMode(info)
         showPanel(false)
@@ -247,6 +248,13 @@ class ImeService : InputMethodService() {
             n = 1
         }
         if (n > 0) ic.deleteSurroundingText(n, 0)
+    }
+
+    /** The height is a setting, so it is applied again every time the keyboard shows. */
+    private fun applyHeight() {
+        val height = keyboardHeight()
+        keyboard.layoutParams = keyboard.layoutParams.apply { this.height = height }
+        panel.layoutParams = panel.layoutParams.apply { this.height = height }
     }
 
     private fun keyboardHeight(): Int {

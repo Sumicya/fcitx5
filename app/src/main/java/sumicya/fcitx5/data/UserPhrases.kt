@@ -16,12 +16,21 @@ class UserPhrases(context: Context) {
     private val items = ArrayList<Phrase>()
 
     init {
-        CharPinyin.load(context)
         if (file.exists()) {
             for (line in file.readLines()) {
                 if (line.isBlank()) continue
-                items.add(Phrase(line, CharPinyin.pinyinOf(line) ?: emptyList()))
+                items.add(Phrase(line, emptyList()))
             }
+            reindex()
+        }
+    }
+
+    /** The readings table is only worth reading once something needs it. */
+    private fun reindex() {
+        if (items.isEmpty()) return
+        CharPinyin.load(context)
+        for (i in items.indices) {
+            items[i] = Phrase(items[i].text, CharPinyin.pinyinOf(items[i].text) ?: emptyList())
         }
     }
 
@@ -30,6 +39,7 @@ class UserPhrases(context: Context) {
     fun add(text: String) {
         val clean = text.trim()
         if (clean.isEmpty() || items.any { it.text == clean }) return
+        CharPinyin.load(context)
         items.add(0, Phrase(clean, CharPinyin.pinyinOf(clean) ?: emptyList()))
         save()
     }

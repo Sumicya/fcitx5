@@ -1,5 +1,9 @@
 [versions]
 androidGradlePlugin = "9.4.1"
+material = "1.14.0"
+
+[libraries]
+material = { module = "com.google.android.material:material", version.ref = "material" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }

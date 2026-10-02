@@ -1,40 +1,45 @@
 package sumicya.fcitx5
 
-import android.app.Activity
-import android.app.AlertDialog
-import android.graphics.Color
 import android.content.Intent
-import android.content.res.ColorStateList
 import android.os.Bundle
 import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.SeekBar
-import android.widget.Switch
-import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.divider.MaterialDivider
+import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.slider.Slider
+import com.google.android.material.textview.MaterialTextView
 import sumicya.fcitx5.data.ClipboardStore
 import sumicya.fcitx5.data.UserPhrases
 import sumicya.fcitx5.engine.UserDict
 
 /**
  * Settings in the shape upstream fcitx5-android uses: the same categories in
- * the same order, and the standard Material row, so anyone arriving from
- * upstream finds things where they expect them.
+ * the same order, built out of Material 3 Expressive components, so anyone
+ * arriving from upstream finds things where they expect them.
  */
-class SettingsActivity : Activity() {
+class SettingsActivity : AppCompatActivity() {
 
-    private class Page(val title: String, val items: List<Item>)
+    private class Page(
+        val title: String,
+        val items: List<Item>,
+        val button: Pair<String, () -> Unit>? = null
+    )
 
     private sealed class Item {
         class Link(val title: String, val summary: String, val target: () -> Page) : Item()
         class Toggle(val title: String, val summary: String, val on: Boolean, val set: (Boolean) -> Unit) : Item()
         class Scale(
-            val title: String, val summary: (Int) -> String,
+            val title: String, val text: (Int) -> String,
             val value: Int, val min: Int, val max: Int, val set: (Int) -> Unit
         ) : Item()
         class Action(val title: String, val summary: String, val run: () -> Unit) : Item()
@@ -43,14 +48,21 @@ class SettingsActivity : Activity() {
     }
 
     private val stack = ArrayDeque<Page>()
-    private lateinit var titleView: TextView
-    private lateinit var back: ImageButton
+    private lateinit var toolbar: MaterialToolbar
     private lateinit var list: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        AppCompatDelegate.setDefaultNightMode(
+            when (Prefs.theme(this)) {
+                "light" -> AppCompatDelegate.MODE_NIGHT_NO
+                "dark" -> AppCompatDelegate.MODE_NIGHT_YES
+                else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+            }
+        )
         super.onCreate(savedInstanceState)
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        root.addView(bar(), LinearLayout.LayoutParams(MATCH, WRAP))
+        toolbar = MaterialToolbar(this)
+        root.addView(toolbar, LinearLayout.LayoutParams(MATCH, WRAP))
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(ScrollView(this).apply { addView(list) }, LinearLayout.LayoutParams(MATCH, 0, 1f))
         setContentView(root)
@@ -60,42 +72,39 @@ class SettingsActivity : Activity() {
 
     @Suppress("MissingSuperCall", "DEPRECATION")
     override fun onBackPressed() {
-        if (stack.size > 1) {
-            stack.removeLast()
-            render()
-        } else {
-            super.onBackPressed()
-        }
+        if (stack.size > 1) goBack() else super.onBackPressed()
     }
 
-    private fun bar() = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        back = ImageButton(this@SettingsActivity).apply {
-            val a = obtainStyledAttributes(intArrayOf(android.R.attr.homeAsUpIndicator))
-            setImageDrawable(a.getDrawable(0))
-            a.recycle()
-            background = null
-            setOnClickListener {
-                stack.removeLast()
-                render()
-            }
-        }
-        addView(back, LinearLayout.LayoutParams(dp(48), dp(48)))
-        titleView = TextView(this@SettingsActivity).apply {
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
-            setTextColor(colorOf(android.R.attr.textColorPrimary))
-            setPadding(dp(4), dp(12), dp(16), dp(12))
-        }
-        addView(titleView, LinearLayout.LayoutParams(0, WRAP, 1f))
+    private fun goBack() {
+        stack.removeLast()
+        render()
     }
 
     private fun render() {
         val page = stack.last()
-        titleView.text = page.title
-        back.visibility = if (stack.size > 1) View.VISIBLE else View.INVISIBLE
+        toolbar.title = page.title
+        if (stack.size > 1) {
+            val up = TypedValue()
+            if (theme.resolveAttribute(android.R.attr.homeAsUpIndicator, up, true) && up.resourceId != 0) {
+                toolbar.setNavigationIcon(up.resourceId)
+            }
+            toolbar.setNavigationOnClickListener { goBack() }
+        } else {
+            toolbar.navigationIcon = null
+        }
         list.removeAllViews()
-        for (item in page.items) list.addView(rowOf(item))
+        page.button?.let { (label, run) ->
+            list.addView(MaterialButton(this).apply {
+                text = label
+                setOnClickListener { run() }
+            }, LinearLayout.LayoutParams(MATCH, WRAP).apply {
+                setMargins(dp(16), dp(16), dp(16), dp(8))
+            })
+        }
+        page.items.forEachIndexed { i, item ->
+            if (i > 0 || page.button != null) list.addView(MaterialDivider(this))
+            list.addView(rowOf(item))
+        }
     }
 
     private fun rowOf(item: Item): View {
@@ -110,67 +119,61 @@ class SettingsActivity : Activity() {
         }
         when (item) {
             is Item.Link -> {
-                row.addView(twoLines(item.title, item.summary), LinearLayout.LayoutParams(0, WRAP, 1f))
+                row.addView(twoLines(item.title, item.summary))
                 row.setOnClickListener { stack.addLast(item.target()); render() }
             }
             is Item.Toggle -> {
-                row.addView(twoLines(item.title, item.summary), LinearLayout.LayoutParams(0, WRAP, 1f))
-                row.addView(Switch(this).apply {
+                row.addView(twoLines(item.title, item.summary))
+                val toggle = MaterialSwitch(this).apply {
                     isChecked = item.on
                     setOnCheckedChangeListener { _, value -> item.set(value) }
-                }, LinearLayout.LayoutParams(WRAP, WRAP))
-                row.setOnClickListener { }
+                }
+                row.addView(toggle, LinearLayout.LayoutParams(WRAP, WRAP))
+                row.setOnClickListener { toggle.isChecked = !toggle.isChecked }
             }
             is Item.Scale -> {
-                val value = TextView(this).apply {
-                    text = item.summary(item.value)
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-                    setTextColor(colorOf(android.R.attr.textColorSecondary))
+                val value = MaterialTextView(this).apply {
+                    text = item.text(item.value)
+                    setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodySmall)
                 }
-                val column = LinearLayout(this).apply {
+                row.addView(LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
-                    addView(TextView(this@SettingsActivity).apply {
+                    addView(MaterialTextView(this@SettingsActivity).apply {
                         text = item.title
-                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-                        setTextColor(colorOf(android.R.attr.textColorPrimary))
+                        setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyLarge)
                     })
                     addView(value)
-                    addView(SeekBar(this@SettingsActivity).apply {
-                        max = item.max - item.min
-                        progress = item.value - item.min
-                        setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                            override fun onProgressChanged(bar: SeekBar, v: Int, fromUser: Boolean) {
-                                val next = v + item.min
-                                value.text = item.summary(next)
-                                if (fromUser) item.set(next)
+                    addView(Slider(this@SettingsActivity).apply {
+                        valueFrom = item.min.toFloat()
+                        valueTo = item.max.toFloat()
+                        value = item.value.toFloat()
+                        stepSize = 1f
+                        addOnChangeListener { _, v, fromUser ->
+                            if (fromUser) {
+                                value.text = item.text(v.toInt())
+                                item.set(v.toInt())
                             }
-                            override fun onStartTrackingTouch(bar: SeekBar) = Unit
-                            override fun onStopTrackingTouch(bar: SeekBar) = Unit
-                        })
+                        }
                     }, LinearLayout.LayoutParams(MATCH, WRAP))
-                }
-                row.addView(column, LinearLayout.LayoutParams(0, WRAP, 1f))
+                }, LinearLayout.LayoutParams(0, WRAP, 1f))
             }
             is Item.Action -> {
-                row.addView(twoLines(item.title, item.summary), LinearLayout.LayoutParams(0, WRAP, 1f))
+                row.addView(twoLines(item.title, item.summary))
                 row.setOnClickListener { item.run() }
             }
             is Item.Choice -> {
-                row.addView(TextView(this).apply {
+                row.addView(MaterialTextView(this).apply {
                     text = item.title
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-                    setTextColor(colorOf(android.R.attr.textColorPrimary))
-                    setPadding(dp(8), 0, 0, 0)
+                    setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyLarge)
                 }, LinearLayout.LayoutParams(0, WRAP, 1f))
-                if (item.chosen) row.addView(TextView(this).apply {
+                if (item.chosen) row.addView(MaterialTextView(this).apply {
                     text = "✓"
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
-                    setTextColor(colorOf(android.R.attr.colorAccent))
+                    setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyLarge)
                 }, LinearLayout.LayoutParams(WRAP, WRAP))
                 row.setOnClickListener { item.pick(); render() }
             }
             is Item.Info -> {
-                row.addView(twoLines(item.title, item.summary), LinearLayout.LayoutParams(0, WRAP, 1f))
+                row.addView(twoLines(item.title, item.summary))
                 row.isClickable = false
                 row.background = null
             }
@@ -180,38 +183,39 @@ class SettingsActivity : Activity() {
 
     private fun twoLines(title: String, summary: String) = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        addView(TextView(this@SettingsActivity).apply {
+        addView(MaterialTextView(this@SettingsActivity).apply {
             text = title
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-            setTextColor(colorOf(android.R.attr.textColorPrimary))
+            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyLarge)
         })
-        if (summary.isNotEmpty()) addView(TextView(this@SettingsActivity).apply {
+        if (summary.isNotEmpty()) addView(MaterialTextView(this@SettingsActivity).apply {
             text = summary
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-            setTextColor(colorOf(android.R.attr.textColorSecondary))
+            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodySmall)
         })
-    }
+    }.apply { layoutParams = LinearLayout.LayoutParams(0, WRAP, 1f) }
 
     /* ========== pages ========== */
 
-    private fun index() = Page(getString(R.string.settings_title), listOf(
-        Item.Action(getString(R.string.enable_ime), getString(R.string.enable_ime_summary)) {
+    private fun index() = Page(
+        getString(R.string.settings_title),
+        listOf(
+            Item.Link(getString(R.string.cat_input_method), getString(R.string.cat_input_method_summary), ::inputMethod),
+            Item.Link(getString(R.string.cat_keyboard), getString(R.string.cat_keyboard_summary), ::keyboard),
+            Item.Link(getString(R.string.cat_candidates), getString(R.string.cat_candidates_summary), ::candidates),
+            Item.Link(getString(R.string.cat_clipboard), getString(R.string.cat_clipboard_summary), ::clipboard),
+            Item.Link(getString(R.string.cat_theme), getString(R.string.cat_theme_summary), ::themePage),
+            Item.Link(getString(R.string.cat_advanced), getString(R.string.cat_advanced_summary), ::advanced),
+            Item.Link(getString(R.string.cat_about), getString(R.string.cat_about_summary), ::about),
+        ),
+        getString(R.string.enable_ime) to {
             startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
-        },
-        Item.Link(getString(R.string.cat_input_method), getString(R.string.cat_input_method_summary), ::inputMethod),
-        Item.Link(getString(R.string.cat_keyboard), getString(R.string.cat_keyboard_summary), ::keyboard),
-        Item.Link(getString(R.string.cat_candidates), getString(R.string.cat_candidates_summary), ::candidates),
-        Item.Link(getString(R.string.cat_clipboard), getString(R.string.cat_clipboard_summary), ::clipboard),
-        Item.Link(getString(R.string.cat_theme), getString(R.string.cat_theme_summary), ::themePage),
-        Item.Link(getString(R.string.cat_advanced), getString(R.string.cat_advanced_summary), ::advanced),
-        Item.Link(getString(R.string.cat_about), getString(R.string.cat_about_summary), ::about),
-    ))
+        }
+    )
 
     private fun inputMethod() = Page(getString(R.string.cat_input_method), listOf(
         Item.Toggle(
             getString(R.string.pref_traditional), getString(R.string.pref_traditional_summary),
             Prefs.traditional(this)
-        ) { value -> getSharedPreferences("prefs", MODE_PRIVATE).edit().putBoolean("traditional", value).apply() },
+        ) { value -> edit("traditional", value) },
         Item.Info(getString(R.string.info_dict), getString(R.string.info_dict_summary)),
         Item.Info(getString(R.string.info_freq), getString(R.string.info_freq_summary)),
     ))
@@ -220,12 +224,12 @@ class SettingsActivity : Activity() {
         Item.Toggle(
             getString(R.string.pref_haptic), getString(R.string.pref_haptic_summary),
             Prefs.haptic(this)
-        ) { value -> getSharedPreferences("prefs", MODE_PRIVATE).edit().putBoolean("haptic", value).apply() },
+        ) { value -> edit("haptic", value) },
         Item.Scale(
             getString(R.string.pref_height_title),
             { value -> getString(R.string.height_percent, value) },
             Prefs.heightPercent(this), Prefs.HEIGHT_MIN, Prefs.HEIGHT_MAX
-        ) { value -> getSharedPreferences("prefs", MODE_PRIVATE).edit().putInt("height", value).apply() },
+        ) { value -> edit("height", value) },
         Item.Info(getString(R.string.pref_height_summary), ""),
     ))
 
@@ -233,7 +237,7 @@ class SettingsActivity : Activity() {
         Item.Toggle(
             getString(R.string.pref_digit_pick), getString(R.string.pref_digit_pick_summary),
             Prefs.digitPick(this)
-        ) { value -> getSharedPreferences("prefs", MODE_PRIVATE).edit().putBoolean("digit_pick", value).apply() },
+        ) { value -> edit("digit_pick", value) },
         Item.Info(getString(R.string.candidate_ranking), getString(R.string.candidate_ranking_summary)),
     ))
 
@@ -248,6 +252,7 @@ class SettingsActivity : Activity() {
         Item.Choice(getString(R.string.theme_system), Prefs.theme(this) == "system") { Prefs.setTheme(this, "system") },
         Item.Choice(getString(R.string.theme_light), Prefs.theme(this) == "light") { Prefs.setTheme(this, "light") },
         Item.Choice(getString(R.string.theme_dark), Prefs.theme(this) == "dark") { Prefs.setTheme(this, "dark") },
+        Item.Info(getString(R.string.theme_note), getString(R.string.theme_note_summary)),
     ))
 
     private fun advanced() = Page(getString(R.string.cat_advanced), listOf(
@@ -265,8 +270,16 @@ class SettingsActivity : Activity() {
         Item.Info(getString(R.string.info_licence), getString(R.string.info_licence_summary)),
     ))
 
+    private fun edit(key: String, value: Boolean) {
+        getSharedPreferences("prefs", MODE_PRIVATE).edit().putBoolean(key, value).apply()
+    }
+
+    private fun edit(key: String, value: Int) {
+        getSharedPreferences("prefs", MODE_PRIVATE).edit().putInt(key, value).apply()
+    }
+
     private fun confirm(run: () -> Unit) {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle(R.string.confirm_title)
             .setMessage(R.string.confirm_clear)
             .setNegativeButton(R.string.confirm_no, null)
@@ -278,15 +291,6 @@ class SettingsActivity : Activity() {
         packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
     } catch (e: Exception) {
         "?"
-    }
-
-    private fun colorOf(attr: Int): ColorStateList {
-        val a = obtainStyledAttributes(intArrayOf(attr))
-        val color = a.getColorStateList(0) ?: ColorStateList.valueOf(
-            if (attr == android.R.attr.textColorSecondary) Color.GRAY else Color.BLACK
-        )
-        a.recycle()
-        return color
     }
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density + 0.5f).toInt()
