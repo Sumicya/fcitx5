@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Pack the official fcitx5 pinyin dictionary into the binary asset the app reads.
 
-Source: https://download.fcitx-im.org/data/<tar> -> dict_sc.txt
-Licence: LGPL-2.1-or-later (see fcitx/libime REUSE.toml, data/dict-**.tar.**),
-the same licence as this repository.
+Sources:
+    lexicon   https://download.fcitx-im.org/data/<tar> -> dict_sc.txt
+              LGPL-2.1-or-later (see fcitx/libime REUSE.toml)
+    frequency https://github.com/rime/rime-essay -> essay.txt, pinned by commit
+              LGPL-3.0, which makes the shipped app LGPL-3.0 as a whole
+    variants  OpenCC STCharacters.txt, vendored in scripts/ (Apache-2.0)
 
 Input lines are "hanzi pinyin freq", syllables separated by an apostrophe:
     你好 ni'hao 3.14159
@@ -29,6 +32,14 @@ TAR_NAME = "dict-20260907.tar.zst"
 TAR_URL = "https://download.fcitx-im.org/data/" + TAR_NAME
 TAR_SHA256 = "fb75a179065e690dfc4559ce1807cbaf4fbe4f0111a5005615be9f435e6b9d76"
 DICT_MEMBER = "dict_sc.txt"
+
+# rime-essay is LGPL-3.0, dict_sc.txt is LGPL-2.1-or-later; shipping both means
+# the app as a whole goes out under LGPL-3.0. Pinned by commit because the file
+# has no published checksum.
+ESSAY_SHA = "054920de4f54c9e5994276a96a4fc2a35cb51aa3"
+ESSAY_URL = (
+    "https://raw.githubusercontent.com/rime/rime-essay/%s/essay.txt" % ESSAY_SHA
+)
 OUT_PATH = os.path.join("app", "src", "main", "assets", "pinyin.dict")
 ST_SRC = os.path.join("scripts", "st_characters.txt")
 ST_OUT = os.path.join("app", "src", "main", "assets", "st.txt")
@@ -40,6 +51,9 @@ MAX_SYLLABLES = 7
 SYLLABLE_BITS = 9
 SYLLABLE_MASK = (1 << SYLLABLE_BITS) - 1
 
+# scores of words the corpus knows live above this, everything else below
+CORPUS_FLOOR = 0.5
+
 # a phrase that covers more syllables beats per-character matches, but only just
 SYLLABLE_BONUS = 600
 REFINE_PASSES = 2
@@ -50,17 +64,19 @@ def log(msg):
 
 
 def download(url, dest, sha256):
-    if os.path.exists(dest) and hashlib.sha256(open(dest, "rb").read()).hexdigest() == sha256:
+    """sha256=None means the file has no published checksum: it is pinned by URL."""
+    if sha256 and os.path.exists(dest) and hashlib.sha256(open(dest, "rb").read()).hexdigest() == sha256:
         log("using cached %s" % dest)
         return
     log("downloading %s" % url)
     tmp = dest + ".part"
     with urllib.request.urlopen(url, timeout=300) as r, open(tmp, "wb") as f:
         shutil.copyfileobj(r, f)
-    got = hashlib.sha256(open(tmp, "rb").read()).hexdigest()
-    if got != sha256:
-        os.remove(tmp)
-        sys.exit("sha256 mismatch for %s\n  expected %s\n  got      %s" % (url, sha256, got))
+    if sha256:
+        got = hashlib.sha256(open(tmp, "rb").read()).hexdigest()
+        if got != sha256:
+            os.remove(tmp)
+            sys.exit("sha256 mismatch for %s\n  expected %s\n  got      %s" % (url, sha256, got))
     os.replace(tmp, dest)
     log("downloaded %s (%d bytes)" % (dest, os.path.getsize(dest)))
 
@@ -129,7 +145,43 @@ def report(entries, path):
     log("word length histogram: %s" % dict(sorted(lens.items())))
 
 
-def build_scorer(entries):
+def build_scorer(entries, essay=None):
+    """Rank words, corpus counts first.
+
+    Anything with a real corpus count outranks anything without one; the
+    heuristic below only orders the words essay.txt never saw. The two bands
+    are kept apart by CORPUS_FLOOR.
+    """
+
+    heuristic = build_heuristic(entries)
+
+    if essay:
+        import math
+
+        top = math.log1p(max(essay.values()))
+        bottom = math.log1p(min(essay.values()))
+
+        def corpus(word):
+            count = essay.get(word)
+            if not count:
+                return None
+            weight = (math.log1p(count) - bottom) / ((top - bottom) or 1.0)
+            return CORPUS_FLOOR + (1.0 - CORPUS_FLOOR) * weight
+
+    def fall_back(word, freq):
+        return (1.0 - CORPUS_FLOOR) * heuristic(word, freq)
+
+    if not essay:
+        return heuristic
+
+    def score(word, freq):
+        value = corpus(word)
+        return value if value is not None else fall_back(word, freq)
+
+    return score
+
+
+def build_heuristic(entries):
     """Rank words with no corpus at hand.
 
     Two weak signals, averaged because neither survives on its own:
@@ -182,7 +234,7 @@ def build_scorer(entries):
     return score
 
 
-def pack(entries, out_path, max_per_key=40, min_freq=None):
+def pack(entries, out_path, max_per_key=40, min_freq=None, essay=None):
     entries = list(entries)
     syllables = sorted({s for _, syl, _ in entries for s in syl})
     if len(syllables) > SYLLABLE_MASK:
@@ -190,7 +242,7 @@ def pack(entries, out_path, max_per_key=40, min_freq=None):
     syl_id = {s: i + 1 for i, s in enumerate(syllables)}
     log("distinct syllables: %d" % len(syllables))
 
-    score = build_scorer(entries)
+    score = build_scorer(entries, essay)
 
     by_key = {}
     for word, syl, freq in entries:
@@ -230,6 +282,11 @@ def pack(entries, out_path, max_per_key=40, min_freq=None):
             value = min(0xFFFF, int(0xFFFF * score(word, freq)) + SYLLABLE_BONUS * (nsyl - 1))
             data += struct.pack("<B", len(raw)) + raw + struct.pack("<H", value)
     log("shipped %d keys, dropped %d low ranked homophones" % (len(offsets), dropped))
+    if essay:
+        covered = sum(1 for word, _, _ in entries if word in essay)
+        log("corpus covers %d/%d entries (%.0f%%)" % (covered, len(entries), 100.0 * covered / len(entries)))
+        for probe in ("的", "你", "我", "好", "你好", "我们"):
+            log("essay %s -> %s" % (probe, essay.get(probe)))
 
     header = bytearray()
     header += MAGIC
@@ -259,11 +316,11 @@ def pack(entries, out_path, max_per_key=40, min_freq=None):
     log("wrote %s (%d bytes, data section starts at %d)" % (out_path, len(blob), data_start))
 
 
-def pack_variants():
-    """Simplified -> traditional, one character per line, from the OpenCC table."""
+def load_variants():
+    """(simplified, traditional) pairs from the vendored OpenCC table."""
     if not os.path.exists(ST_SRC):
         sys.exit("missing %s" % ST_SRC)
-    out = []
+    pairs = []
     with open(ST_SRC, encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
@@ -274,16 +331,48 @@ def pack_variants():
                 continue
             values = parts[1].split()
             if values:
-                out.append("%s\t%s" % (parts[0], values[0]))
+                pairs.append((parts[0], values[0]))
+    return pairs
+
+
+def pack_variants(pairs):
+    """Simplified -> traditional, one character per line, for Trad.kt."""
     with open(ST_OUT, "w", encoding="utf-8") as fh:
-        fh.write("\n".join(out) + "\n")
-    log("wrote %s (%d mappings)" % (ST_OUT, len(out)))
+        fh.write("\n".join("%s\t%s" % pair for pair in pairs) + "\n")
+    log("wrote %s (%d mappings)" % (ST_OUT, len(pairs)))
+
+
+def load_essay(path, pairs):
+    """word -> corpus count, folded to simplified so it matches dict_sc.txt.
+
+    essay.txt is written in traditional characters, so every word is mapped
+    back through the inverted OpenCC table before it is counted.
+    """
+    # ponytail: the table is not injective (干/乾/幹), so the fold is lossy;
+    # collisions just add their counts together.
+    t2s = {}
+    for simplified, traditional in pairs:
+        t2s.setdefault(traditional, simplified)
+    counts = {}
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            parts = line.split()
+            if len(parts) != 2 or not parts[1].isdigit():
+                continue
+            count = int(parts[1])
+            if count <= 0:
+                continue
+            word = "".join(t2s.get(ch, ch) for ch in parts[0])
+            counts[word] = counts.get(word, 0) + count
+    log("essay: %d simplified words with a corpus count, top=%d" % (len(counts), max(counts.values())))
+    return counts
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--max-per-key", type=int, default=40)
     ap.add_argument("--min-freq", type=float, default=None)
+    ap.add_argument("--no-essay", action="store_true", help="rank without the corpus")
     args = ap.parse_args()
 
     workdir = tempfile.mkdtemp(prefix="fcitx5-dict-")
@@ -292,10 +381,20 @@ def main():
     txt = untar_zst(archive, workdir)
     log("dictionary text: %s (%d bytes)" % (txt, os.path.getsize(txt)))
 
+    variants = load_variants()
+    pack_variants(variants)
+
+    essay = None
+    if not args.no_essay:
+        essay_path = os.path.join(workdir, "essay.txt")
+        download(ESSAY_URL, essay_path, None)
+        log("essay text: %s (%d bytes)" % (essay_path, os.path.getsize(essay_path)))
+        essay = load_essay(essay_path, variants)
+
     entries = list(parse(txt))
     report(entries, txt)
-    pack(entries, OUT_PATH, args.max_per_key, args.min_freq)
-    pack_variants()
+    pack(entries, OUT_PATH, args.max_per_key, args.min_freq, essay)
+    shutil.rmtree(workdir, ignore_errors=True)
 
 
 if __name__ == "__main__":

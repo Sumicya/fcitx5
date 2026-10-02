@@ -52,19 +52,28 @@ class PinyinDictTest {
     }
 
     /**
-     * The base ranking has no corpus behind it, so it is only required to put
-     * the obvious character near the front; picking candidates teaches the
-     * user dictionary the rest.
+     * The corpus frequencies in essay.txt are what decide the order here, so
+     * the everyday character has to come out first, not merely near it.
      */
     @Test
-    fun commonCharactersRankNearTheFront() {
+    fun corpusFrequenciesDecideTheOrder() {
         val dict = dict()
-        val front = { s: String -> dict.lookup(listOf(s)).take(3).map { it.word } }
-        assertTrue("DICTDEBUG wo -> ${front("wo")}", "我" in front("wo"))
-        assertTrue("DICTDEBUG de -> ${front("de")}", "的" in front("de"))
-        assertTrue("DICTDEBUG ni -> ${front("ni")}", "你" in front("ni"))
-        assertTrue("DICTDEBUG yi -> ${front("yi")}", "一" in front("yi"))
-        assertTrue("DICTDEBUG hao -> ${front("hao")}", "好" in front("hao"))
+        val first = { s: String -> dict.lookup(listOf(s)).firstOrNull()?.word }
+        assertEquals("DICTDEBUG wo -> ${dict.lookup(listOf("wo")).take(4)}", "我", first("wo"))
+        assertEquals("DICTDEBUG de -> ${dict.lookup(listOf("de")).take(4)}", "的", first("de"))
+        assertEquals("DICTDEBUG ni -> ${dict.lookup(listOf("ni")).take(4)}", "你", first("ni"))
+        assertEquals("DICTDEBUG yi -> ${dict.lookup(listOf("yi")).take(4)}", "一", first("yi"))
+        assertEquals("DICTDEBUG hao -> ${dict.lookup(listOf("hao")).take(4)}", "好", first("hao"))
+        assertEquals("DICTDEBUG shi -> ${dict.lookup(listOf("shi")).take(4)}", "是", first("shi"))
+        assertEquals("DICTDEBUG bu -> ${dict.lookup(listOf("bu")).take(4)}", "不", first("bu"))
+    }
+
+    @Test
+    fun commonWordsComeFirst() {
+        val dict = dict()
+        val first = { s: List<String> -> dict.lookup(s).firstOrNull()?.word }
+        assertEquals("DICTDEBUG nihao -> ${dict.lookup(listOf("ni", "hao")).take(4)}", "你好", first(listOf("ni", "hao")))
+        assertEquals("DICTDEBUG women -> ${dict.lookup(listOf("wo", "men")).take(4)}", "我们", first(listOf("wo", "men")))
     }
 
     @Test
