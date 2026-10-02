@@ -8,7 +8,7 @@ class Key(
     val swipe: String? = null,
     val weight: Float = 1f,
 ) {
-    enum class Type { CHAR, DELETE, ENTER, SPACE, SHIFT, LAYER, MODE }
+    enum class Type { CHAR, DELETE, ENTER, SPACE, SHIFT, LAYER, MODE, PANEL }
 
     fun text(shift: Boolean): String {
         if (!shift || type != Type.CHAR) return label
@@ -25,6 +25,11 @@ object Keys {
     private fun fn(weight: Float, label: String, type: Key.Type) =
         Key(label, type, 0, null, weight)
 
+    private val bottom = listOf(
+        fn(1.2f, "中", Key.Type.MODE), fn(1f, "☰", Key.Type.PANEL), ch(','),
+        fn(3.2f, " ", Key.Type.SPACE), ch('.'), fn(1.3f, "⏎", Key.Type.ENTER),
+    )
+
     val qwerty = listOf(
         listOf(
             ch('q', "1"), ch('w', "2"), ch('e', "3"), ch('r', "4"), ch('t', "5"),
@@ -40,11 +45,7 @@ object Keys {
             ch('b', "="), ch('n', "["), ch('m', "]"),
             fn(1.4f, "⌫", Key.Type.DELETE),
         ),
-        listOf(
-            fn(1.4f, "?123", Key.Type.LAYER), fn(1.2f, "中", Key.Type.MODE), ch(','),
-            fn(4f, " ", Key.Type.SPACE), ch('.'),
-            fn(1.4f, "⏎", Key.Type.ENTER),
-        ),
+        listOf(fn(1.3f, "?123", Key.Type.LAYER)) + bottom,
     )
 
     val symbols = listOf(
@@ -60,10 +61,6 @@ object Keys {
             ch('~'), ch('`'), ch('|'), ch('\\'), ch('/'),
             ch(':'), ch(';'), ch('"'), ch('\''), ch('?'),
         ),
-        listOf(
-            fn(1.4f, "ABC", Key.Type.LAYER), fn(1.2f, "中", Key.Type.MODE), ch(','),
-            fn(4f, " ", Key.Type.SPACE), ch('.'),
-            fn(1.4f, "⏎", Key.Type.ENTER),
-        ),
+        listOf(fn(1.3f, "ABC", Key.Type.LAYER)) + bottom,
     )
 }

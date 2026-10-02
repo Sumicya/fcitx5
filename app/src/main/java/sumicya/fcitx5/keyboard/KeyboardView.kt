@@ -140,6 +140,7 @@ class KeyboardView(context: Context) : View(context) {
 
     private fun labelOf(key: Key): String = when (key.type) {
         Key.Type.MODE -> modeLabel
+        Key.Type.PANEL -> "☰"
         Key.Type.LAYER -> if (layer == Layer.LETTERS) "?123" else "ABC"
         Key.Type.SPACE -> ""
         else -> key.label

@@ -1,28 +1,45 @@
 package sumicya.fcitx5
 
+import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
+import android.text.InputType
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.LinearLayout
+import sumicya.fcitx5.data.ClipboardStore
 import sumicya.fcitx5.engine.PinyinEngine
 import sumicya.fcitx5.keyboard.Key
 import sumicya.fcitx5.keyboard.KeyboardView
 import sumicya.fcitx5.ui.CandidateBar
+import sumicya.fcitx5.ui.ClipboardPanel
 
 class ImeService : InputMethodService() {
 
     private val engine by lazy { PinyinEngine(this) }
+    private val clipboard by lazy { ClipboardStore(this) }
     private var candidates: List<PinyinEngine.Candidate> = emptyList()
+    private var wantsChinese = true
+    private var fieldOverridden = false
+
+    private lateinit var root: LinearLayout
     private lateinit var keyboard: KeyboardView
     private lateinit var candidateBar: CandidateBar
+    private lateinit var panel: ClipboardPanel
 
     override fun onCreateInputView(): View {
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         candidateBar = CandidateBar(this) { pick(it) }
         keyboard = KeyboardView(this).apply { listener = keyListener }
+        panel = ClipboardPanel(
+            this,
+            onPick = { commit(it); showPanel(false) },
+            onClose = { showPanel(false) },
+        )
         root.addView(candidateBar, LinearLayout.LayoutParams(MATCH, dp(44)))
-        root.addView(keyboard, LinearLayout.LayoutParams(MATCH, dp(216)))
+        root.addView(keyboard, LinearLayout.LayoutParams(MATCH, keyboardHeight()))
+        root.addView(panel, LinearLayout.LayoutParams(MATCH, keyboardHeight()))
+        panel.visibility = View.GONE
         updateCandidates()
         return root
     }
@@ -30,6 +47,10 @@ class ImeService : InputMethodService() {
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         engine.clear()
+        fieldOverridden = false
+        applyMode(info)
+        showPanel(false)
+        clipboard.refresh()
         updateCandidates()
     }
 
@@ -57,6 +78,7 @@ class ImeService : InputMethodService() {
                 Key.Type.SHIFT -> keyboard.shift = !keyboard.shift
                 Key.Type.LAYER -> keyboard.toggleLayer()
                 Key.Type.MODE -> toggleMode()
+                Key.Type.PANEL -> showPanel(panel.visibility != View.VISIBLE)
                 Key.Type.CHAR -> {
                     val text = if (gesture == KeyboardView.Gesture.SWIPE_UP && key.swipe != null) {
                         key.swipe!!
@@ -137,10 +159,14 @@ class ImeService : InputMethodService() {
 
     private fun onEnter() {
         val ic = currentInputConnection ?: return
+        // enter commits the raw pinyin: the user wanted letters, not a candidate
         if (engine.isComposing()) {
-            ic.finishComposingText()
+            val pending = engine.preeditText()
             engine.clear()
+            ic.finishComposingText()
+            ic.commitText(pending, 1)
             updateCandidates()
+            return
         }
         val info = currentInputEditorInfo
         val action = info.imeOptions and EditorInfo.IME_MASK_ACTION
@@ -153,13 +179,43 @@ class ImeService : InputMethodService() {
     }
 
     private fun toggleMode() {
-        engine.chinese = !engine.chinese
-        keyboard.modeLabel = if (engine.chinese) "中" else "英"
-        if (!engine.chinese && engine.isComposing()) {
+        wantsChinese = !engine.chinese
+        fieldOverridden = true
+        if (!wantsChinese && engine.isComposing()) {
             val pending = engine.preeditText()
             engine.clear()
             commit(pending)
-            updateCandidates()
+        }
+        engine.chinese = wantsChinese
+        keyboard.modeLabel = if (engine.chinese) "中" else "英"
+        updateCandidates()
+    }
+
+    private fun applyMode(info: EditorInfo?) {
+        engine.chinese = wantsChinese && (fieldOverridden || !forcesEnglish(info))
+        keyboard.modeLabel = if (engine.chinese) "中" else "英"
+    }
+
+    private fun forcesEnglish(info: EditorInfo?): Boolean {
+        if (info == null) return false
+        val cls = info.inputType and InputType.TYPE_MASK_CLASS
+        val variation = info.inputType and InputType.TYPE_MASK_VARIATION
+        return cls == InputType.TYPE_CLASS_NUMBER ||
+            cls == InputType.TYPE_CLASS_PHONE ||
+            cls == InputType.TYPE_CLASS_DATETIME ||
+            variation == InputType.TYPE_TEXT_VARIATION_PASSWORD ||
+            variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
+            variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD ||
+            variation == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS ||
+            variation == InputType.TYPE_TEXT_VARIATION_URI
+    }
+
+    private fun showPanel(show: Boolean) {
+        panel.visibility = if (show) View.VISIBLE else View.GONE
+        keyboard.visibility = if (show) View.GONE else View.VISIBLE
+        if (show) {
+            clipboard.refresh()
+            panel.setItems(clipboard.all())
         }
     }
 
@@ -185,6 +241,10 @@ class ImeService : InputMethodService() {
         }
         if (n > 0) ic.deleteSurroundingText(n, 0)
     }
+
+    private fun keyboardHeight() = dp(
+        if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 180 else 216
+    )
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density + 0.5f).toInt()
 
