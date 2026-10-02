@@ -3,6 +3,11 @@ plugins {
     alias(libs.plugins.android.application)
 }
 
+// yy.m.d.ci: CI 在一次运行内算好后用 -PversionName / -PversionCode 传进来，
+// 本地不带参数构建拿到的是开发版本。
+val releaseVersionName = providers.gradleProperty("versionName")
+val releaseVersionCode = providers.gradleProperty("versionCode")
+
 android {
     namespace = "sumicya.fcitx5"
     compileSdk = 36
@@ -11,8 +16,8 @@ android {
         applicationId = "sumicya.fcitx5"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = releaseVersionCode.orNull?.toIntOrNull() ?: 1
+        versionName = releaseVersionName.orNull ?: "0.0.0.dev"
     }
 
     compileOptions {

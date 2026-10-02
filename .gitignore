@@ -1,5 +1,6 @@
-# Generated dictionary asset (downloaded at build time, never commit)
+# Generated dictionary assets (downloaded at build time, never commit)
 /app/src/main/assets/*.bin
+/app/src/main/assets/*.dict
 /app/src/main/assets/*.txt
 
 # Gradle / IDE / build output

@@ -30,6 +30,18 @@ jobs:
       - name: Fix gradlew permission
         run: chmod +x ./gradlew
 
+      # 唯一的正式发布工作流，ci 段就取它的运行序号
+      - name: Compute version
+        id: version
+        # 日期按 Asia/Shanghai 取值，并优先用本次提交的时间：跨日重试同一个提交
+        # 仍然是同一个版本。PR 与手动触发没有 head_commit，回落到当前时间。
+        run: |
+          stamp="${{ github.event.head_commit.timestamp }}"
+          if [ -z "$stamp" ]; then stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"; fi
+          day="$(TZ=Asia/Shanghai date -d "$stamp" +%y.%-m.%-d)"
+          echo "name=$day.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
       - name: Build dictionary
         id: dict
         run: |
@@ -40,7 +52,10 @@ jobs:
         id: apk
         run: |
           set -o pipefail
-          ./gradlew :app:testDebugUnitTest :app:assembleDebug --stacktrace 2>&1 | tee build.log
+          ./gradlew :app:testDebugUnitTest :app:assembleDebug \
+            -PversionName=${{ steps.version.outputs.name }} \
+            -PversionCode=${{ steps.version.outputs.code }} \
+            --stacktrace 2>&1 | tee build.log
 
       - name: Upload APK
         if: success()
@@ -67,8 +82,16 @@ jobs:
                 echo '### ranking probe'
                 grep -E 'DICTDEBUG|TRADDEBUG' build.log | head -20
               fi
-              echo '### apk size'
-              ls -l app/build/outputs/apk/debug/*.apk 2>/dev/null | awk '{printf "%.1f MB  %s\n", $5/1048576, $9}'
+              echo '### version'
+              echo "${{ steps.version.outputs.name }}  versionCode=${{ steps.version.outputs.code }}"
+              echo '### apk'
+              for apk in app/build/outputs/apk/debug/*.apk; do
+                [ -f "$apk" ] || continue
+                echo "$(ls -l "$apk" | awk '{printf "%.1f MB", $5/1048576}')  $apk"
+                unzip -p "$apk" AndroidManifest.xml 2>/dev/null | strings \
+                  | grep -a -m1 -E '^[0-9]{2}\.[0-9]{1,2}\.[0-9]{1,2}\.[0-9]+$' \
+                  | sed 's/^/versionName inside apk: /'
+              done
             } > /tmp/dict.txt
             gh api -X POST "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" -F body=@/tmp/dict.txt
           fi
