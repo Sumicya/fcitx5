@@ -15,16 +15,36 @@ class PinyinEngine(context: Context) {
 
     var chinese: Boolean = true
 
+    /** Serve candidates in traditional characters. */
+    var traditional: Boolean = false
+        set(value) {
+            field = value
+            refresh()
+        }
+
     private val dict = PinyinDict.load(context)
     private val user = UserDict(context)
     private val preedit = StringBuilder()
     private var candidates: List<Candidate> = emptyList()
 
+    init {
+        Trad.load(context)
+    }
+
     fun isComposing() = preedit.isNotEmpty()
 
     fun preeditText() = preedit.toString()
 
-    fun candidates(): List<Candidate> = candidates
+    fun candidates(): List<Candidate> {
+        if (!traditional) return candidates
+        val out = ArrayList<Candidate>(candidates.size)
+        val seen = HashSet<String>()
+        for (it in candidates) {
+            val word = Trad.convert(it.word)
+            if (seen.add(word)) out.add(Candidate(word, it.consumed))
+        }
+        return out
+    }
 
     fun type(c: Char) {
         preedit.append(c.lowercaseChar())
@@ -49,7 +69,7 @@ class PinyinEngine(context: Context) {
         user.bump(candidate.word)
         preedit.delete(0, candidate.consumed)
         refresh()
-        return candidate.word
+        return if (traditional) Trad.convert(candidate.word) else candidate.word
     }
 
     fun save() = user.save()

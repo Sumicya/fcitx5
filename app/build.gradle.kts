@@ -30,7 +30,11 @@ dependencies {
 // network once.
 val generateDictionary = tasks.register<Exec>("generateDictionary") {
     workingDir = rootProject.layout.projectDirectory.asFile
-    onlyIf { !rootProject.layout.projectDirectory.file("app/src/main/assets/pinyin.dict").asFile.exists() }
+    onlyIf {
+        listOf("pinyin.dict", "st.txt").any {
+            !rootProject.layout.projectDirectory.file("app/src/main/assets/$it").asFile.exists()
+        }
+    }
     commandLine("python3", "scripts/build_dict.py")
 }
 tasks.named("preBuild") { dependsOn(generateDictionary) }

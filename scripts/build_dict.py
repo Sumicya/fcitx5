@@ -30,6 +30,8 @@ TAR_URL = "https://download.fcitx-im.org/data/" + TAR_NAME
 TAR_SHA256 = "fb75a179065e690dfc4559ce1807cbaf4fbe4f0111a5005615be9f435e6b9d76"
 DICT_MEMBER = "dict_sc.txt"
 OUT_PATH = os.path.join("app", "src", "main", "assets", "pinyin.dict")
+ST_SRC = os.path.join("scripts", "st_characters.txt")
+ST_OUT = os.path.join("app", "src", "main", "assets", "st.txt")
 
 MAGIC = b"FCPYDIC1"
 MAX_SYLLABLES = 7
@@ -257,6 +259,27 @@ def pack(entries, out_path, max_per_key=40, min_freq=None):
     log("wrote %s (%d bytes, data section starts at %d)" % (out_path, len(blob), data_start))
 
 
+def pack_variants():
+    """Simplified -> traditional, one character per line, from the OpenCC table."""
+    if not os.path.exists(ST_SRC):
+        sys.exit("missing %s" % ST_SRC)
+    out = []
+    with open(ST_SRC, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split("\t")
+            if len(parts) < 2 or len(parts[0]) != 1:
+                continue
+            values = parts[1].split()
+            if values:
+                out.append("%s\t%s" % (parts[0], values[0]))
+    with open(ST_OUT, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(out) + "\n")
+    log("wrote %s (%d mappings)" % (ST_OUT, len(out)))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--max-per-key", type=int, default=40)
@@ -272,6 +295,7 @@ def main():
     entries = list(parse(txt))
     report(entries, txt)
     pack(entries, OUT_PATH, args.max_per_key, args.min_freq)
+    pack_variants()
 
 
 if __name__ == "__main__":

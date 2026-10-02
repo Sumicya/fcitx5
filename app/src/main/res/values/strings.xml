@@ -4,5 +4,6 @@
     <string name="ime_name">拼音输入法</string>
     <string name="enable_ime">启用输入法</string>
     <string name="pref_haptic">按键振动</string>
+    <string name="pref_traditional">繁体输出</string>
     <string name="pref_force_dark">强制深色键盘</string>
 </resources>

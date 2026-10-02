@@ -28,6 +28,11 @@ class SettingsActivity : Activity() {
             prefs.edit().putBoolean("haptic", it).apply()
         })
         root.addView(
+            checkRow(getString(R.string.pref_traditional), prefs.getBoolean("traditional", false)) {
+                prefs.edit().putBoolean("traditional", it).apply()
+            }
+        )
+        root.addView(
             checkRow(
                 getString(R.string.pref_force_dark),
                 prefs.getString("theme", "system") == "dark"

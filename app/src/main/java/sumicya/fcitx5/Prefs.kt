@@ -10,6 +10,9 @@ object Prefs {
 
     fun haptic(context: Context) = prefs(context).getBoolean("haptic", true)
 
+    /** Serve traditional characters instead of simplified ones. */
+    fun traditional(context: Context) = prefs(context).getBoolean("traditional", false)
+
     /** null = follow system night mode. */
     fun dark(context: Context): Boolean? = when (prefs(context).getString("theme", "system")) {
         "dark" -> true

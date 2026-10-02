@@ -37,6 +37,18 @@ class PinyinDictTest {
         assertTrue(dict.lookup(listOf("shu", "ru", "fa")).any { it.word == "输入法" })
     }
 
+    @Test
+    fun traditionalTableCoversEverydayCharacters() {
+        val file = File("src/main/assets/st.txt")
+        check(file.exists()) { "missing ${file.absolutePath}: run scripts/build_dict.py first" }
+        val map = HashMap<Char, Char>()
+        for (line in file.readLines()) {
+            if (line.length >= 3) map[line[0]] = line[2]
+        }
+        val text = "我们来说时间头发汉字语输入法爱心"
+        assertEquals("我們來說時間頭髮漢字語輸入法愛心", text.map { map[it] ?: it }.joinToString(""))
+    }
+
     /**
      * The base ranking has no corpus behind it, so it is only required to put
      * the obvious character near the front; picking candidates teaches the

@@ -12,7 +12,7 @@ import sumicya.fcitx5.engine.PinyinEngine
 import sumicya.fcitx5.keyboard.Key
 import sumicya.fcitx5.keyboard.KeyboardView
 import sumicya.fcitx5.ui.CandidateBar
-import sumicya.fcitx5.ui.ClipboardPanel
+import sumicya.fcitx5.ui.Panel
 
 class ImeService : InputMethodService() {
 
@@ -25,13 +25,13 @@ class ImeService : InputMethodService() {
     private lateinit var root: LinearLayout
     private lateinit var keyboard: KeyboardView
     private lateinit var candidateBar: CandidateBar
-    private lateinit var panel: ClipboardPanel
+    private lateinit var panel: Panel
 
     override fun onCreateInputView(): View {
         root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         candidateBar = CandidateBar(this) { pick(it) }
         keyboard = KeyboardView(this).apply { listener = keyListener }
-        panel = ClipboardPanel(
+        panel = Panel(
             this,
             onPick = { commit(it); showPanel(false) },
             onClose = { showPanel(false) },
@@ -47,6 +47,7 @@ class ImeService : InputMethodService() {
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         engine.clear()
+        engine.traditional = Prefs.traditional(this)
         fieldOverridden = false
         applyMode(info)
         showPanel(false)
@@ -215,7 +216,7 @@ class ImeService : InputMethodService() {
         keyboard.visibility = if (show) View.GONE else View.VISIBLE
         if (show) {
             clipboard.refresh()
-            panel.setItems(clipboard.all())
+            panel.setClips(clipboard.all())
         }
     }
 
