@@ -14,12 +14,12 @@ class ProbeTest {
         val buffer = ByteBuffer.wrap(file.readBytes()).order(ByteOrder.LITTLE_ENDIAN)
         val dict = PinyinDict.parse(buffer) ?: error("bad dict")
         val syl = dict.syllables
-        println("PROBE count=${syl.size}")
-        println("PROBE all=" + (1..syl.size).joinToString(" ") { syl.name(it) })
+        println("DICTDEBUG probe count=${syl.size}")
+        println("DICTDEBUG probe all=" + (1..syl.size).joinToString(" ") { syl.name(it) })
         for (s in listOf("ui", "iu", "un", "u", "wei", "uei", "yh", "y", "h", "sh", "zh", "ch", "ng")) {
             val id = syl.idOf(s)
             val sample = if (id == 0) "-" else dict.lookup(listOf(s)).take(4).joinToString("") { it.word }
-            println("PROBE [$s] id=$id sample=$sample")
+            println("DICTDEBUG probe [$s] id=$id sample=$sample")
         }
     }
 }
