@@ -40,7 +40,7 @@ jobs:
         id: apk
         run: |
           set -o pipefail
-          ./gradlew :app:assembleDebug --stacktrace 2>&1 | tee build.log
+          ./gradlew :app:testDebugUnitTest :app:assembleDebug --stacktrace 2>&1 | tee build.log
 
       - name: Upload APK
         if: success()
@@ -70,7 +70,7 @@ jobs:
           {
             echo "APK build failed on $(git rev-parse --short HEAD)"
             echo '### compiler errors'
-            grep -E '^(e:|w:)|error:|Unresolved reference|Script compilation' build.log | head -60
+            grep -E '^(e:|w:)|error:|Unresolved reference|Script compilation|FAILED|expected:|AssertionError' build.log | head -60
             echo
             echo '### gradle failure digest'
             awk '/^FAILURE: Build failed/,0' build.log | grep -vE '^\s+at ' | head -60

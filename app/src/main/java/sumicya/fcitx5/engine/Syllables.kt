@@ -7,6 +7,8 @@ class Syllables(private val names: List<String>) {
         names.forEachIndexed { index, name -> put(name, index + 1) }
     }
 
+    val size: Int get() = names.size
+
     /** Syllables starting at [from], longest first. */
     fun matchesAt(text: String, from: Int): List<Match> {
         val out = ArrayList<Match>(4)
@@ -19,6 +21,9 @@ class Syllables(private val names: List<String>) {
     }
 
     fun name(id: Int): String = names.getOrElse(id - 1) { "" }
+
+    /** 0 when the syllable is unknown. */
+    fun idOf(name: String): Int = ids[name] ?: 0
 
     data class Match(val id: Int, val end: Int)
 

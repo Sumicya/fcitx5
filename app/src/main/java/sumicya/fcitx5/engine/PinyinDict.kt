@@ -35,6 +35,14 @@ class PinyinDict private constructor(
         return key
     }
 
+    /** Convenience for tests and tools: look up by syllable names, e.g. "ni", "hao". */
+    fun lookup(words: List<String>): List<Entry> {
+        val ids = IntArray(Syllables.MAX_PER_WORD)
+        val length = minOf(words.size, Syllables.MAX_PER_WORD)
+        for (i in 0 until length) ids[i] = syllables.idOf(words[i])
+        return if (ids[0] == 0) emptyList() else lookup(keyOf(ids, length))
+    }
+
     fun lookup(key: Long): List<Entry> {
         var lo = 0
         var hi = count - 1
@@ -86,10 +94,12 @@ class PinyinDict private constructor(
             }
         }
 
-        private fun open(file: File): PinyinDict? {
-            val buffer = FileInputStream(file).use { stream ->
-                stream.channel.map(FileChannel.MapMode.READ_ONLY, 0, file.length())
-            }.order(ByteOrder.LITTLE_ENDIAN)
+        private fun open(file: File): PinyinDict? = parse(FileInputStream(file).use { stream ->
+            stream.channel.map(FileChannel.MapMode.READ_ONLY, 0, file.length())
+        }.order(ByteOrder.LITTLE_ENDIAN))
+
+        /** Visible for tests: [buffer] must be little endian and positioned at 0. */
+        internal fun parse(buffer: ByteBuffer): PinyinDict? {
             val magic = ByteArray(8)
             buffer.duplicate().get(magic)
             if (!magic.contentEquals(MAGIC)) return null
