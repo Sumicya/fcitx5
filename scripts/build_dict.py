@@ -110,32 +110,16 @@ def parse(path):
 
 
 def report(entries, path):
+    """A short summary; the point is to notice when upstream data changes."""
     if not entries:
         sys.exit("no entries parsed")
-    log("total entries: %d" % len(entries))
-    with open(path, encoding="utf-8", errors="replace") as fh:
-        raw = fh.read().splitlines()
-    log("first 12 raw lines: %s" % raw[:12])
-    log("last 6 raw lines: %s" % raw[-6:])
-    for probe in ("的", "我", "一", "你好", "㝵"):
-        log("raw lines for %s: %s" % (probe, [l for l in raw if l.split() and l.split()[0] == probe][:4]))
-    zero = sum(1 for e in entries if e[2] == 0.0)
-    log("freq buckets: zero=%d negative=%d positive=%d" % (
-        zero, sum(1 for e in entries if e[2] < 0), sum(1 for e in entries if e[2] > 0)))
-    freqs = [f for _, _, f in entries]
-    log("freq min=%r max=%r" % (min(freqs), max(freqs)))
+    known = [f for _, _, f in entries if f != 0.0]
+    log("entries=%d source=%d bytes with_freq=%d" % (len(entries), os.path.getsize(path), len(known)))
     by_word = {}
     for word, syl, freq in entries:
         by_word.setdefault(word, []).append((" ".join(syl), freq))
-    for probe in ("的", "一", "我", "你好", "中国", "我们", "拼音", "输入法"):
+    for probe in ("的", "我", "你好", "输入法"):
         log("probe %s -> %s" % (probe, by_word.get(probe)))
-    for key in ("de", "wo", "ni hao", "zhong guo"):
-        hits = [e for e in entries if " ".join(e[1]) == key]
-        hits_asc = sorted(hits, key=lambda e: e[2])[:6]
-        hits_desc = sorted(hits, key=lambda e: -e[2])[:6]
-        log("key %r: %d hits" % (key, len(hits)))
-        log("   ascending : %s" % [(w, f) for w, _, f in hits_asc])
-        log("   descending: %s" % [(w, f) for w, _, f in hits_desc])
     lens = {}
     for word, _, _ in entries:
         lens[len(word)] = lens.get(len(word), 0) + 1

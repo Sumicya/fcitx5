@@ -13,6 +13,8 @@ class PinyinEngine(context: Context) {
 
     data class Candidate(val word: String, val consumed: Int)
 
+    var chinese: Boolean = true
+
     private val dict = PinyinDict.load(context)
     private val preedit = StringBuilder()
     private var candidates: List<Candidate> = emptyList()
