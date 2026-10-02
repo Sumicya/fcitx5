@@ -145,7 +145,7 @@ class PinyinEngine(context: Context) {
     private class Path(val ids: IntArray, val length: Int, val consumed: Int)
 
     private companion object {
-        const val MAX_CANDIDATES = 40
+        const val MAX_CANDIDATES = 64
         const val MAX_PATHS = 64
     }
 }

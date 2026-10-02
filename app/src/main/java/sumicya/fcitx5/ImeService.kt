@@ -36,7 +36,7 @@ class ImeService : InputMethodService() {
             onPick = { commit(it); showPanel(false) },
             onClose = { showPanel(false) },
         )
-        root.addView(candidateBar, LinearLayout.LayoutParams(MATCH, dp(44)))
+        root.addView(candidateBar, LinearLayout.LayoutParams(MATCH, dp(44f)))
         root.addView(keyboard, LinearLayout.LayoutParams(MATCH, keyboardHeight()))
         root.addView(panel, LinearLayout.LayoutParams(MATCH, keyboardHeight()))
         panel.visibility = View.GONE
@@ -243,11 +243,12 @@ class ImeService : InputMethodService() {
         if (n > 0) ic.deleteSurroundingText(n, 0)
     }
 
-    private fun keyboardHeight() = dp(
-        if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 180 else 216
-    )
+    private fun keyboardHeight(): Int {
+        val base = if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) 180 else 216
+        return dp(base * Prefs.heightPercent(this) / 100f)
+    }
 
-    private fun dp(value: Int) = (value * resources.displayMetrics.density + 0.5f).toInt()
+    private fun dp(value: Float) = (value * resources.displayMetrics.density + 0.5f).toInt()
 
     private companion object {
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
