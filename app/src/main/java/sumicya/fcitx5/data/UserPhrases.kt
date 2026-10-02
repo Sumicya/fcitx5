@@ -8,7 +8,7 @@ import java.io.File
  * Phrases the user saved, remembered with their pinyin so they can be typed
  * even though no dictionary contains them.
  */
-class UserPhrases(context: Context) {
+class UserPhrases(private val context: Context) {
 
     private class Phrase(val text: String, val pinyin: List<String>)
 

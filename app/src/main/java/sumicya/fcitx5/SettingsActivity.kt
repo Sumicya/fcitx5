@@ -132,7 +132,7 @@ class SettingsActivity : AppCompatActivity() {
                 row.setOnClickListener { toggle.isChecked = !toggle.isChecked }
             }
             is Item.Scale -> {
-                val value = MaterialTextView(this).apply {
+                val valueText = MaterialTextView(this).apply {
                     text = item.text(item.value)
                     setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodySmall)
                 }
@@ -142,7 +142,7 @@ class SettingsActivity : AppCompatActivity() {
                         text = item.title
                         setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyLarge)
                     })
-                    addView(value)
+                    addView(valueText)
                     addView(Slider(this@SettingsActivity).apply {
                         valueFrom = item.min.toFloat()
                         valueTo = item.max.toFloat()
@@ -150,7 +150,7 @@ class SettingsActivity : AppCompatActivity() {
                         stepSize = 1f
                         addOnChangeListener { _, v, fromUser ->
                             if (fromUser) {
-                                value.text = item.text(v.toInt())
+                                valueText.text = item.text(v.toInt())
                                 item.set(v.toInt())
                             }
                         }
