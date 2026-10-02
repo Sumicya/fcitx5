@@ -2,9 +2,63 @@
 <resources>
     <string name="app_name">Fcitx5</string>
     <string name="ime_name">拼音输入法</string>
+    <string name="settings_title">设置</string>
+
     <string name="enable_ime">启用输入法</string>
+    <string name="enable_ime_summary">在系统设置里启用并选为默认</string>
+
+    <string name="cat_input_method">输入法</string>
+    <string name="cat_input_method_summary">拼音、繁体输出</string>
+    <string name="cat_keyboard">虚拟键盘</string>
+    <string name="cat_keyboard_summary">按键振动、键盘高度</string>
+    <string name="cat_candidates">候选词</string>
+    <string name="cat_candidates_summary">选词方式、排序</string>
+    <string name="cat_clipboard">剪贴板</string>
+    <string name="cat_clipboard_summary">历史与清空</string>
+    <string name="cat_theme">主题</string>
+    <string name="cat_theme_summary">日间、夜间</string>
+    <string name="cat_advanced">高级</string>
+    <string name="cat_advanced_summary">用户数据</string>
+    <string name="cat_about">关于</string>
+    <string name="cat_about_summary">版本与数据来源</string>
+
     <string name="pref_haptic">按键振动</string>
+    <string name="pref_haptic_summary">按下按键时振动一下</string>
+    <string name="pref_height_title">键盘高度</string>
+    <string name="height_percent">%1$d%%</string>
+    <string name="pref_height_summary">默认 100%%，横屏以此为基准</string>
     <string name="pref_traditional">繁体输出</string>
-    <string name="pref_height">键盘高度 %1$d%%</string>
-    <string name="pref_force_dark">强制深色键盘</string>
+    <string name="pref_traditional_summary">候选和上屏都转成繁体</string>
+    <string name="pref_digit_pick">数字键选词</string>
+    <string name="pref_digit_pick_summary">拼音输入时用 1–9 直接选候选</string>
+
+    <string name="theme_system">跟随系统</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+
+    <string name="clipboard_unlimited">剪贴板历史不限条数</string>
+    <string name="clipboard_unlimited_summary">键盘弹出时自动收录系统剪贴板，永久保留</string>
+    <string name="clear_clipboard">清空剪贴板历史</string>
+    <string name="clear_clipboard_summary">删除已经收录的所有剪贴板条目</string>
+    <string name="clear_learned">清空学习记录</string>
+    <string name="clear_learned_summary">删除 user.txt，候选回到初始排序</string>
+    <string name="clear_phrases">清空常用短语</string>
+    <string name="clear_phrases_summary">删除收藏的短语，剪贴板历史不受影响</string>
+
+    <string name="candidate_ranking">排序依据</string>
+    <string name="candidate_ranking_summary">语料词频优先，你选过的词永远在最前</string>
+    <string name="info_dict">词库</string>
+    <string name="info_dict_summary">fcitx5 官方词库，30 万词条</string>
+    <string name="info_freq">词频</string>
+    <string name="info_freq_summary">RIME 八股文语料，21 万条词有真实计数</string>
+    <string name="info_data_dir">数据位置</string>
+    <string name="info_data_dir_summary">/data/data/sumicya.fcitx5/files</string>
+    <string name="info_version">版本</string>
+    <string name="info_licence">许可</string>
+    <string name="info_licence_summary">代码 LGPL-2.1-or-later，因含 LGPL-3.0 语料，整体按 LGPL-3.0 分发</string>
+
+    <string name="confirm_title">确认</string>
+    <string name="confirm_clear">要清空吗？这个操作没法撤销。</string>
+    <string name="confirm_yes">清空</string>
+    <string name="confirm_no">取消</string>
 </resources>

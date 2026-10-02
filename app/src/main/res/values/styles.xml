@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar" />
+    <!-- DeviceDefault follows the device, so on a Pixel this is Material You
+         with the user's own colors, and elsewhere it is whatever the OEM
+         ships. No Material Components dependency needed for that. -->
+    <style name="AppTheme" parent="android:style/Theme.DeviceDefault.Light.NoActionBar" />
 </resources>

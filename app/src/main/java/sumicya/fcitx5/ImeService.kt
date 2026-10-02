@@ -112,7 +112,7 @@ class ImeService : InputMethodService() {
                 return
             }
             // digits pick a candidate while composing, the way every IME does
-            if (engine.isComposing() && c.isDigit() && c != '0') {
+            if (Prefs.digitPick(this) && engine.isComposing() && c.isDigit() && c != '0') {
                 pick(c - '1')
                 return
             }

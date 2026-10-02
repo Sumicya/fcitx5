@@ -20,9 +20,17 @@ object Prefs {
         prefs(context).getInt("height", 100).coerceIn(HEIGHT_MIN, HEIGHT_MAX)
 
     /** null = follow system night mode. */
-    fun dark(context: Context): Boolean? = when (prefs(context).getString("theme", "system")) {
+    fun dark(context: Context): Boolean? = when (theme(context)) {
         "dark" -> true
         "light" -> false
         else -> null
     }
+
+    fun theme(context: Context) = prefs(context).getString("theme", "system") ?: "system"
+
+    fun setTheme(context: Context, value: String) =
+        prefs(context).edit().putString("theme", value).apply()
+
+    /** Digits 1-9 pick a candidate while composing. */
+    fun digitPick(context: Context) = prefs(context).getBoolean("digit_pick", true)
 }

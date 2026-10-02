@@ -7,6 +7,9 @@ import java.io.File
 /**
  * Plain text clipboard history. The system only keeps the latest clip, so the
  * history is whatever we managed to read while the keyboard was on screen.
+ *
+ * ponytail: no cap on purpose, the file stays small next to the dictionary and
+ * an old clip you can still find beats a tidy limit.
  */
 class ClipboardStore(context: Context) {
 
@@ -30,7 +33,12 @@ class ClipboardStore(context: Context) {
             ?.takeIf { it.isNotBlank() } ?: return
         items.remove(text)
         items.add(0, text)
-        while (items.size > MAX) items.removeAt(items.size - 1)
+        save()
+    }
+
+    fun clear() {
+        if (items.isEmpty()) return
+        items.clear()
         save()
     }
 
@@ -48,6 +56,5 @@ class ClipboardStore(context: Context) {
 
     companion object {
         private const val FILE = "clip.txt"
-        private const val MAX = 50
     }
 }

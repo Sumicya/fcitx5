@@ -33,6 +33,12 @@ class UserDict(context: Context) {
         dirty = true
     }
 
+    fun clear() {
+        counts.clear()
+        dirty = true
+        save()
+    }
+
     fun save() {
         if (!dirty) return
         val tmp = File(file.parentFile, "$FILE.tmp")

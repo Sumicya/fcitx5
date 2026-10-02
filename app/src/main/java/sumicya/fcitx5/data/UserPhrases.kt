@@ -42,6 +42,11 @@ class UserPhrases(context: Context) {
     fun match(syllables: List<String>): List<String> =
         items.filter { it.pinyin.isNotEmpty() && it.pinyin == syllables }.map { it.text }
 
+    fun clear() {
+        items.clear()
+        save()
+    }
+
     private fun save() {
         val tmp = File(file.parentFile, "$FILE.tmp")
         try {

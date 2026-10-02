@@ -74,6 +74,16 @@ class KeyboardView(context: Context) : View(context) {
 
     private val isDark: Boolean
         get() = Prefs.dark(context)
+
+    /** The theme's accent, so the keyboard follows dynamic color too. */
+    private val accent: Int by lazy {
+        val value = TypedValue()
+        if (context.theme.resolveAttribute(android.R.attr.colorAccent, value, true)) {
+            value.data
+        } else {
+            Color.rgb(0x1A, 0x73, 0xE8)
+        }
+    }
             ?: ((resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK)
                     == Configuration.UI_MODE_NIGHT_YES)
 
@@ -123,7 +133,7 @@ class KeyboardView(context: Context) : View(context) {
 
             val label = labelOf(key)
             if (label.isNotBlank()) {
-                textPaint.color = if (key.type == Key.Type.ENTER) ACCENT else if (dark) Color.rgb(0xEC, 0xEC, 0xEC) else Color.rgb(0x20, 0x21, 0x24)
+                textPaint.color = if (key.type == Key.Type.ENTER) accent else if (dark) Color.rgb(0xEC, 0xEC, 0xEC) else Color.rgb(0x20, 0x21, 0x24)
                 textPaint.textSize = if (key.type == Key.Type.CHAR) keyTextSize else keyTextSize * 0.85f
                 val fm = textPaint.fontMetrics
                 canvas.drawText(label, r.centerX(), r.centerY() - (fm.ascent + fm.descent) / 2f, textPaint)
@@ -217,6 +227,5 @@ class KeyboardView(context: Context) : View(context) {
     }
 
     private companion object {
-        val ACCENT = Color.rgb(0x1A, 0x73, 0xE8)
     }
 }
