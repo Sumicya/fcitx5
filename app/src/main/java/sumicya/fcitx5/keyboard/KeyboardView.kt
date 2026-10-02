@@ -125,7 +125,9 @@ class KeyboardView(context: Context) : View(context) {
         pressed = role(com.google.android.material.R.attr.colorSecondaryContainer, 0xDAD2FB, 0x4A4458),
         onSurface = role(com.google.android.material.R.attr.colorOnSurface, 0x1D1B20, 0xE6E0E9),
         onSurfaceVariant = role(com.google.android.material.R.attr.colorOnSurfaceVariant, 0x625B71, 0xCAC4D0),
-        primary = role(com.google.android.material.R.attr.colorPrimary, 0x6750A4, 0xD0BCFF),
+        // colorPrimary lives in appcompat, which is not on our compile classpath;
+        // the framework colorAccent is what Material themes map it to anyway
+        primary = role(android.R.attr.colorAccent, 0x6750A4, 0xD0BCFF),
         onPrimary = role(com.google.android.material.R.attr.colorOnPrimary, 0xFFFFFF, 0x381E72)
     )
 
