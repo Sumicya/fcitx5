@@ -77,6 +77,22 @@ class PinyinDictTest {
     }
 
     @Test
+    fun characterReadingsCoverEverydayText() {
+        val file = File("src/main/assets/py.txt")
+        check(file.exists()) { "missing ${file.absolutePath}: run scripts/build_dict.py first" }
+        val map = HashMap<Char, List<String>>()
+        for (line in file.readLines()) {
+            if (line.length >= 3) map[line[0]] = line.substring(2).split(" ")
+        }
+        assertTrue("PYDEBUG ${map.size} characters", map.size > 30000)
+        for (char in "我们来说时间头发汉字语输入法爱心") {
+            assertTrue("PYDEBUG missing $char", char in map)
+        }
+        assertTrue("PYDEBUG ni -> ${map['你']}", "ni" in (map['你'] ?: emptyList()))
+        assertTrue("PYDEBUG hao -> ${map['好']}", "hao" in (map['好'] ?: emptyList()))
+    }
+
+    @Test
     fun candidatesAreOrderedByScore() {
         val dict = dict()
         for (syllable in listOf("wo", "de", "ni", "yi", "hao")) {

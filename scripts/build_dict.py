@@ -43,6 +43,7 @@ ESSAY_URL = (
 OUT_PATH = os.path.join("app", "src", "main", "assets", "pinyin.dict")
 ST_SRC = os.path.join("scripts", "st_characters.txt")
 ST_OUT = os.path.join("app", "src", "main", "assets", "st.txt")
+PY_OUT = os.path.join("app", "src", "main", "assets", "py.txt")
 
 MAGIC = b"FCPYDIC1"
 MAX_SYLLABLES = 7
@@ -343,6 +344,27 @@ def pack_variants(pairs):
     log("wrote %s (%d mappings)" % (ST_OUT, len(pairs)))
 
 
+def pack_pinyin(entries):
+    """character -> readings, so a phrase the user coined can be typed.
+
+    The dictionary is the only pinyin source we already have: 33k of its
+    entries are single characters, which covers everything anyone types.
+    """
+    readings = {}
+    for word, syl, _ in entries:
+        if len(word) != 1 or len(syl) != 1:
+            continue
+        values = readings.setdefault(word, [])
+        reading = syl[0]
+        if reading not in values:
+            values.append(reading)
+    os.makedirs(os.path.dirname(PY_OUT), exist_ok=True)
+    with open(PY_OUT, "w", encoding="utf-8") as fh:
+        for char in sorted(readings):
+            fh.write("%s\t%s\n" % (char, " ".join(readings[char])))
+    log("wrote %s (%d characters)" % (PY_OUT, len(readings)))
+
+
 def load_essay(path, pairs):
     """word -> corpus count, folded to simplified so it matches dict_sc.txt.
 
@@ -394,6 +416,7 @@ def main():
 
     entries = list(parse(txt))
     report(entries, txt)
+    pack_pinyin(entries)
     pack(entries, OUT_PATH, args.max_per_key, args.min_freq, essay)
     shutil.rmtree(workdir, ignore_errors=True)
 

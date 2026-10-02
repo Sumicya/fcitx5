@@ -31,7 +31,7 @@ dependencies {
 val generateDictionary = tasks.register<Exec>("generateDictionary") {
     workingDir = rootProject.layout.projectDirectory.asFile
     onlyIf {
-        listOf("pinyin.dict", "st.txt").any {
+        listOf("pinyin.dict", "st.txt", "py.txt").any {
             !rootProject.layout.projectDirectory.file("app/src/main/assets/$it").asFile.exists()
         }
     }

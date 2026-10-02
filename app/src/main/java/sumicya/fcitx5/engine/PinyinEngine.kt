@@ -1,6 +1,7 @@
 package sumicya.fcitx5.engine
 
 import android.content.Context
+import sumicya.fcitx5.data.UserPhrases
 
 /**
  * Composition state on top of [PinyinDict].
@@ -21,6 +22,9 @@ class PinyinEngine(context: Context) {
             field = value
             refresh()
         }
+
+    /** Phrases the user saved; they are candidates even though no dictionary has them. */
+    val phrases = UserPhrases(context)
 
     private val dict = PinyinDict.load(context)
     private val user = UserDict(context)
@@ -85,10 +89,25 @@ class PinyinEngine(context: Context) {
         val paths = segment(table.syllables, text)
         val lengths = paths.map { it.consumed }.distinct().sortedDescending()
         for (length in lengths) {
-            val result = collect(table, paths.filter { it.consumed == length }, length)
-            if (result.isNotEmpty()) return result
+            val group = paths.filter { it.consumed == length }
+            val coined = coinedPhrases(table, group, length)
+            val result = collect(table, group, length)
+            if (coined.isEmpty() && result.isEmpty()) continue
+            return (coined + result).distinctBy { it.word }.take(MAX_CANDIDATES)
         }
         return emptyList()
+    }
+
+    /** Saved phrases are not in the dictionary, so they are matched by hand. */
+    private fun coinedPhrases(table: PinyinDict, paths: List<Path>, consumed: Int): List<Candidate> {
+        val out = ArrayList<Candidate>()
+        for (path in paths) {
+            val syllables = (0 until path.length).map { table.syllables.name(path.ids[it]) }
+            for (phrase in phrases.match(syllables)) {
+                if (out.none { it.word == phrase }) out.add(Candidate(phrase, consumed))
+            }
+        }
+        return out
     }
 
     private fun collect(table: PinyinDict, paths: List<Path>, consumed: Int): List<Candidate> {

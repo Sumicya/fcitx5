@@ -1,7 +1,6 @@
 package sumicya.fcitx5.ui
 
 import android.content.Context
-import android.graphics.Typeface
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -10,10 +9,10 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 
-class ClipboardPanel(
+class PhrasePanel(
     context: Context,
     private val onPick: (String) -> Unit,
-    private val onPin: (String) -> Unit,
+    private val onRemove: (String) -> Unit,
 ) : LinearLayout(context) {
 
     private val list = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
@@ -26,18 +25,17 @@ class ClipboardPanel(
 
     fun setItems(items: List<String>) {
         list.removeAllViews()
-        if (items.isEmpty()) {
-            list.addView(TextView(context).apply {
-                text = "还没有复制过文字"
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-                setPadding(dp(14), dp(14), dp(14), dp(14))
-            })
-            return
-        }
-        for (item in items) {
+        items.forEach { item ->
             list.addView(row(item))
             list.addView(View(context).apply { setBackgroundColor(DIVIDER) },
                 LinearLayout.LayoutParams(MATCH, 1))
+        }
+        if (items.isEmpty()) {
+            list.addView(TextView(context).apply {
+                text = "还没有常用短语。复制文字后，点剪贴板条目右边的 ★ 就存到这里，之后可以直接打拼音上屏。"
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                setPadding(dp(14), dp(14), dp(14), dp(14))
+            })
         }
     }
 
@@ -52,11 +50,11 @@ class ClipboardPanel(
             setOnClickListener { onPick(item) }
         }, LinearLayout.LayoutParams(0, WRAP, 1f))
         addView(TextView(context).apply {
-            text = "★"
+            text = "✕"
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
             gravity = Gravity.CENTER
             setPadding(dp(14), dp(12), dp(14), dp(12))
-            setOnClickListener { onPin(item) }
+            setOnClickListener { onRemove(item) }
         }, LinearLayout.LayoutParams(WRAP, WRAP))
     }
 

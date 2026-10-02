@@ -16,14 +16,15 @@
 | 输入法 | 全拼拼音（30 万词条，21 万条有真实词频）、英文、数字与符号层、中英切换 |
 | 键盘 | 手写 Canvas 四行 QWERTY，**上滑**出次要符号（无长按）、空格横滑移动光标、退格左滑删词 |
 | 候选 | 音节切分 + 词库匹配 + 语料词频排序，**选过的词自动置顶**（用户词频学习） |
-| ☰ 面板 | 剪贴板历史（50 条）+ 表情（8 类约 400 个） |
+| ☰ 面板 | 剪贴板历史（50 条）+ 常用短语 + 表情（8 类约 400 个） |
+| 自造词 | 剪贴板条目点 ★ 存成短语，之后打它的拼音就能上屏（按字表注音，词库里没有也算） |
 | 简繁 | 按字转繁体（OpenCC 对照表，4012 字），候选与上屏都转 |
 | 中文标点 | `,` `.` `?` `!` `:` `;` `(` `)` 自动转全角 |
 | 体积 | 单词典数据（构建期生成，5.4 MB），无 native 库 |
 | 平台 | minSdk 26（Android 8+），全 ABI（纯 Kotlin 零成本） |
 | 包名 | `sumicya.fcitx5` |
 
-还没做：用户自造词、模糊音、双拼、滑行输入（上滑只用来出符号）。
+还没做：模糊音、双拼、滑行输入（上滑只用来出符号）。
 
 ## 构建
 
@@ -59,6 +60,7 @@ su -c 'ime set    sumicya.fcitx5/sumicya.fcitx5.ImeService'
 | 词库（30 万词条） | `download.fcitx-im.org/data/dict-20260907.tar.zst` → `dict_sc.txt` | LGPL-2.1-or-later |
 | 词频（37 万词） | [rime-essay](https://github.com/rime/rime-essay) `essay.txt`，按 commit `054920d` 钉死 | LGPL-3.0 |
 | 简繁对照 | OpenCC `STCharacters.txt`，已内置在 `scripts/` | Apache-2.0 |
+| 注音（自造词用） | 上面那份词库里的单字条目，构建时抽出 | LGPL-2.1-or-later |
 
 词库带 SHA256 校验（取自 libime 的 `data/CMakeLists.txt`）；语料没有公布校验值，
 所以用 commit 钉住 URL 而不是校验和。

@@ -35,7 +35,10 @@ class ImeService : InputMethodService() {
             this,
             onPick = { commit(it); showPanel(false) },
             onClose = { showPanel(false) },
-        )
+        ).apply {
+            onPin = { engine.phrases.add(it); showPhrases() }
+            onRemove = { engine.phrases.remove(it); showPhrases() }
+        }
         root.addView(candidateBar, LinearLayout.LayoutParams(MATCH, dp(44f)))
         root.addView(keyboard, LinearLayout.LayoutParams(MATCH, keyboardHeight()))
         root.addView(panel, LinearLayout.LayoutParams(MATCH, keyboardHeight()))
@@ -217,8 +220,11 @@ class ImeService : InputMethodService() {
         if (show) {
             clipboard.refresh()
             panel.setClips(clipboard.all())
+            showPhrases()
         }
     }
+
+    private fun showPhrases() = panel.setPhrases(engine.phrases.all())
 
     /** ponytail: the cursor offset comes from the text before it, capped at 4096 chars. */
     private fun moveCursor(delta: Int) {
