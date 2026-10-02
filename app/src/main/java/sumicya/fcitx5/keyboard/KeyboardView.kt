@@ -74,6 +74,8 @@ class KeyboardView(context: Context) : View(context) {
 
     private val isDark: Boolean
         get() = Prefs.dark(context)
+            ?: ((resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK)
+                    == Configuration.UI_MODE_NIGHT_YES)
 
     /** The theme's accent, so the keyboard follows dynamic color too. */
     private val accent: Int by lazy {
@@ -84,8 +86,6 @@ class KeyboardView(context: Context) : View(context) {
             Color.rgb(0x1A, 0x73, 0xE8)
         }
     }
-            ?: ((resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK)
-                    == Configuration.UI_MODE_NIGHT_YES)
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
