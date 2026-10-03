@@ -1,7 +1,7 @@
 package sumicya.fcitx5.ui
 
 import android.content.Context
-import android.graphics.Typeface
+import android.graphics.Color
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -25,6 +25,11 @@ class CandidateBar(
         isHorizontalScrollBarEnabled = false
     }
     private val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+    private val selectedContainer = Theme.color(
+        context,
+        com.google.android.material.R.attr.colorSecondaryContainer,
+        0xFFE8DEF8.toInt(), 0xFF4A4458.toInt()
+    )
     private val page = IconView(context, Icon.CHEVRON_RIGHT).apply {
         contentDescription = "下一页候选"
         setOnClickListener { flip() }
@@ -70,12 +75,18 @@ class CandidateBar(
         this.text = text
         setTextSize(TypedValue.COMPLEX_UNIT_SP, Theme.BODY_LARGE)
         gravity = Gravity.CENTER
-        // the first candidate is what space commits, so it is marked
-        if (index == 0) setTypeface(typeface, Typeface.BOLD)
         val pad = Theme.dp(context, 12f)
         setPadding(pad, 0, pad, 0)
         setOnClickListener { onPick(index) }
-        Theme.clickable(this)
+        // M3 Expressive: the candidate space commits is a filled chip, the rest
+        // are only outlined by the ripple
+        if (index == 0) {
+            background = Theme.pill(context, selectedContainer)
+            setTextColor(Theme.color(context, com.google.android.material.R.attr.colorOnSecondaryContainer, 0xFF1D192B.toInt(), 0xFFE8DEF8.toInt()))
+        } else {
+            background = Theme.pill(context, Color.TRANSPARENT)
+            setTextColor(Theme.color(context, com.google.android.material.R.attr.colorOnSurface, 0xFF1D1B20.toInt(), 0xFFE6E0E9.toInt()))
+        }
     }
 
     private companion object {

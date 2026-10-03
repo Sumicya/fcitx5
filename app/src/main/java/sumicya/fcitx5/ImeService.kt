@@ -48,25 +48,43 @@ class ImeService : InputMethodService() {
         root.addView(panel, LinearLayout.LayoutParams(MATCH, keyboardHeight()))
         panel.visibility = View.GONE
         updateCandidates()
-        // since Android 15 the input view is drawn behind the navigation bar and
-        // the framework no longer pads it, so the bar would sit on the bottom row
-        root.setOnApplyWindowInsetsListener { _, insets ->
-            applyBottomInset(insets)
-            insets
-        }
         return root
     }
 
-    /** Keep the keys clear of the navigation bar, whatever the system reports. */
+    override fun onWindowShown() {
+        super.onWindowShown()
+        applyHeight()
+        padForNavigationBar()
+    }
+
+    /**
+     * Since Android 15 the input view is drawn to the bottom edge and nothing
+     * pads it: the gesture bar would sit on the last row.
+     *
+     * The insets handed to the view are useless here — the framework's decor has
+     * already eaten them when it did pad, and they are zero when it did not —
+     * so instead measure how much room is left under the last row and only pay
+     * for the bar when there is none.
+     */
+    private fun padForNavigationBar() {
+        root.post {
+            val decor = window?.window?.decorView ?: return@post
+            val location = IntArray(2)
+            root.getLocationOnScreen(location)
+            val keptClear = resources.displayMetrics.heightPixels - (location[1] + root.height)
+            val pad = if (keptClear >= dp(8f)) 0 else barHeight(decor).coerceAtMost(dp(32f))
+            if (root.paddingBottom != pad) root.setPadding(0, 0, 0, pad)
+        }
+    }
+
     @Suppress("DEPRECATION")
-    private fun applyBottomInset(insets: WindowInsets) {
-        val reported = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+    private fun barHeight(decor: View): Int {
+        val insets = decor.rootWindowInsets ?: return dp(24f)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             insets.getInsets(WindowInsets.Type.navigationBars()).bottom
         } else {
             insets.systemWindowInsetBottom
         }
-        val pad = reported.coerceAtMost(dp(24f))
-        if (root.paddingBottom != pad) root.setPadding(0, 0, 0, pad)
     }
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {

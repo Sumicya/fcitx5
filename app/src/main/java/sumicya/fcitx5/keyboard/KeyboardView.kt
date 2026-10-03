@@ -154,7 +154,7 @@ class KeyboardView(context: Context) : View(context) {
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         val d = resources.displayMetrics
-        radius = 12f * d.density
+        radius = 16f * d.density
         keyTextSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, Theme.TITLE_LARGE, d)
         fnTextSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, Theme.TITLE_MEDIUM, d)
         hintTextSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, Theme.BODY_SMALL, d)
@@ -203,7 +203,12 @@ class KeyboardView(context: Context) : View(context) {
                 else -> p.keyVariant
             }
             // MD3 Expressive: the wide keys are pills, the rest are soft squares
-            val rr = if (key.type == Key.Type.SPACE || accent) r.height() / 2f else radius
+            // that morph towards a pill while they are pressed
+            val rr = when {
+                key.type == Key.Type.SPACE || accent -> r.height() / 2f
+                pressed -> radius + (r.height() / 2f - radius) * pressProgress
+                else -> radius
+            }
             canvas.drawRoundRect(r, rr, rr, keyPaint)
 
             // M3 state layers: a press overlays 10% of the content colour on the

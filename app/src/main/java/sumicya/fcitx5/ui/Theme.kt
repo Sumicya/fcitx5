@@ -5,6 +5,7 @@ import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.util.TypedValue
 import android.view.View
@@ -30,6 +31,9 @@ object Theme {
     /** The M3 minimum touch target, in dp. */
     const val TOUCH = 48f
 
+    /** Any radius this large is clamped to half the view: a pill. */
+    private const val PILL = 1000f
+
     fun isDark(context: Context): Boolean = Prefs.dark(context)
         ?: ((context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK)
                 == Configuration.UI_MODE_NIGHT_YES)
@@ -49,16 +53,32 @@ object Theme {
         0xFFCAC4D0.toInt(), 0xFF444746.toInt()
     )
 
+    /** The colour Material presses with. */
+    private fun highlight(context: Context): Int {
+        val tv = TypedValue()
+        return if (context.theme.resolveAttribute(android.R.attr.colorControlHighlight, tv, true)) {
+            tv.data
+        } else if (isDark(context)) 0x33FFFFFF else 0x1F000000
+    }
+
     /**
      * M3 feedback for a tap: a ripple in the theme's highlight colour, clipped
      * to the view. Material's own components press with the same colour.
      */
-    fun ripple(context: Context): Drawable {
-        val tv = TypedValue()
-        val tint = if (context.theme.resolveAttribute(android.R.attr.colorControlHighlight, tv, true)) {
-            tv.data
-        } else if (isDark(context)) 0x33FFFFFF else 0x1F000000
-        return RippleDrawable(ColorStateList.valueOf(tint), null, ColorDrawable(0xFFFFFFFF.toInt()))
+    fun ripple(context: Context): Drawable =
+        RippleDrawable(ColorStateList.valueOf(highlight(context)), null, ColorDrawable(0xFFFFFFFF.toInt()))
+
+    /**
+     * An M3 Expressive chip: a pill, filled with [fill], with the press ripple
+     * clipped to the same shape. A transparent fill leaves the ripple alone.
+     */
+    fun pill(context: Context, fill: Int): Drawable {
+        val mask = GradientDrawable().apply { cornerRadius = PILL; setColor(0xFFFFFFFF.toInt()) }
+        return RippleDrawable(
+            ColorStateList.valueOf(highlight(context)),
+            GradientDrawable().apply { cornerRadius = PILL; setColor(fill) },
+            mask
+        )
     }
 
     /** Give a hand-built row, cell or button the feedback Material gives one. */

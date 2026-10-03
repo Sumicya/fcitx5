@@ -155,7 +155,14 @@ class SettingsActivity : AppCompatActivity() {
         val ripple = TypedValue()
         theme.resolveAttribute(android.R.attr.selectableItemBackground, ripple, true)
         setBackgroundResource(ripple.resourceId)
-        addView(twoLines(getString(group.title), getString(group.summary)), LinearLayout.LayoutParams(0, WRAP, 1f))
+        addView(
+            twoLines(
+                getString(group.title),
+                getString(group.summary),
+                com.google.android.material.R.style.TextAppearance_Material3_TitleMedium
+            ),
+            LinearLayout.LayoutParams(0, WRAP, 1f)
+        )
         val chevron = IconView(this@SettingsActivity, Icon.CHEVRON_RIGHT).apply {
             // a chevron pointing right, stood on its head: Material's expand arrow
             rotation = if (group.key in expanded) 90f else 0f
@@ -289,11 +296,15 @@ class SettingsActivity : AppCompatActivity() {
         return row
     }
 
-    private fun twoLines(title: String, summary: String) = LinearLayout(this).apply {
+    private fun twoLines(
+        title: String,
+        summary: String,
+        appearance: Int = com.google.android.material.R.style.TextAppearance_Material3_BodyLarge
+    ) = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         addView(MaterialTextView(this@SettingsActivity).apply {
             text = title
-            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyLarge)
+            setTextAppearance(appearance)
         })
         if (summary.isNotEmpty()) addView(MaterialTextView(this@SettingsActivity).apply {
             text = summary
@@ -308,8 +319,6 @@ class SettingsActivity : AppCompatActivity() {
             getString(R.string.pref_traditional), getString(R.string.pref_traditional_summary),
             Prefs.traditional(this)
         ) { value -> edit("traditional", value) },
-        Item.Info(getString(R.string.info_dict), getString(R.string.info_dict_summary)),
-        Item.Info(getString(R.string.info_freq), getString(R.string.info_freq_summary)),
     )
 
     private fun keyboardPage(): List<Item> = listOf(
@@ -322,7 +331,6 @@ class SettingsActivity : AppCompatActivity() {
             { value -> getString(R.string.height_percent, value) },
             Prefs.heightPercent(this), Prefs.HEIGHT_MIN, Prefs.HEIGHT_MAX
         ) { value -> edit("height", value) },
-        Item.Info(getString(R.string.pref_height_summary), ""),
     )
 
     private fun candidates(): List<Item> = listOf(
@@ -330,11 +338,9 @@ class SettingsActivity : AppCompatActivity() {
             getString(R.string.pref_digit_pick), getString(R.string.pref_digit_pick_summary),
             Prefs.digitPick(this)
         ) { value -> edit("digit_pick", value) },
-        Item.Info(getString(R.string.candidate_ranking), getString(R.string.candidate_ranking_summary)),
     )
 
     private fun clipboard(): List<Item> = listOf(
-        Item.Info(getString(R.string.clipboard_unlimited), getString(R.string.clipboard_unlimited_summary)),
         Item.Action(getString(R.string.clear_clipboard), getString(R.string.clear_clipboard_summary)) {
             confirm { ClipboardStore(this).clear() }
         },
