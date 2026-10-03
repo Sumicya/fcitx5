@@ -86,7 +86,7 @@ class PinyinEngine(context: Context) {
         val table = dict ?: return emptyList()
         val text = preedit.toString()
         if (text.isEmpty()) return emptyList()
-        val paths = segment(table.syllables, text)
+        val paths = Segmenter.split(table.syllables, text)
         val lengths = paths.map { it.consumed }.distinct().sortedDescending()
         for (length in lengths) {
             val group = paths.filter { it.consumed == length }
@@ -99,9 +99,12 @@ class PinyinEngine(context: Context) {
     }
 
     /** Saved phrases are not in the dictionary, so they are matched by hand. */
-    private fun coinedPhrases(table: PinyinDict, paths: List<Path>, consumed: Int): List<Candidate> {
+    private fun coinedPhrases(table: PinyinDict, paths: List<Segmenter.Path>, consumed: Int): List<Candidate> {
         val out = ArrayList<Candidate>()
         for (path in paths) {
+            // a phrase the user coined is typed in full; matching it against
+            // initials would put it in front of words the spelling really means
+            if (path.initials > 0) continue
             val syllables = (0 until path.length).map { table.syllables.name(path.ids[it]) }
             for (phrase in phrases.match(syllables)) {
                 if (out.none { it.word == phrase }) out.add(Candidate(phrase, consumed))
@@ -110,11 +113,13 @@ class PinyinEngine(context: Context) {
         return out
     }
 
-    private fun collect(table: PinyinDict, paths: List<Path>, consumed: Int): List<Candidate> {
+    private fun collect(table: PinyinDict, paths: List<Segmenter.Path>, consumed: Int): List<Candidate> {
         val scored = ArrayList<Pair<String, Int>>(64)
         for (path in paths) {
             for (entry in table.lookup(table.keyOf(path.ids, path.length))) {
-                scored.add(entry.word to entry.score + pickedBonus(entry.word))
+                // what the user picked is theirs to keep, so the penalty for a
+                // shorthand or an initial only touches the dictionary score
+                scored.add(entry.word to entry.score - path.penalty + pickedBonus(entry.word))
             }
         }
         scored.sortByDescending { it.second }
@@ -127,44 +132,12 @@ class PinyinEngine(context: Context) {
         return out
     }
 
-    /** Every syllable split of [text], dead ends included, capped at [MAX_PATHS]. */
-    private fun segment(syllables: Syllables, text: String): List<Path> {
-        val out = ArrayList<Path>()
-        val ids = IntArray(Syllables.MAX_PER_WORD)
-
-        fun walk(pos: Int, depth: Int) {
-            if (out.size >= MAX_PATHS) return
-            val done = { out.add(Path(ids.copyOf(), depth, pos)) }
-            when {
-                pos == text.length -> if (depth > 0) done()
-                depth == Syllables.MAX_PER_WORD -> if (depth > 0) done()
-                else -> {
-                    val matches = syllables.matchesAt(text, pos)
-                    if (matches.isEmpty()) {
-                        if (depth > 0) done()
-                    } else {
-                        for (match in matches) {
-                            ids[depth] = match.id
-                            walk(match.end, depth + 1)
-                        }
-                    }
-                }
-            }
-        }
-
-        walk(0, 0)
-        return out
-    }
-
     private fun pickedBonus(word: String): Int {
         val count = user.count(word)
         return if (count == 0) 0 else UserDict.PICKED_BONUS + count * UserDict.REPEAT_BONUS
     }
 
-    private class Path(val ids: IntArray, val length: Int, val consumed: Int)
-
     private companion object {
         const val MAX_CANDIDATES = 64
-        const val MAX_PATHS = 64
     }
 }

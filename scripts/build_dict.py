@@ -59,6 +59,13 @@ CORPUS_FLOOR = 0.5
 SYLLABLE_BONUS = 600
 REFINE_PASSES = 2
 
+# abbreviated pinyin: how many initials are indexed, and how many words a single
+# initial sequence keeps. Without a cap the two letter sequences (676 of them,
+# 146k two character words between them) would double the asset for words nobody
+# scrolls to.
+MAX_INITIALS = 4
+INITIALS_PER_KEY = 20
+
 
 def log(msg):
     print(msg, flush=True)
@@ -254,6 +261,33 @@ def pack(entries, out_path, max_per_key=40, min_freq=None, essay=None):
                 key |= syl_id[syl[i]]
         bucket = by_key.setdefault(key, (len(syl), []))
         bucket[1].append((word, freq))
+
+    # abbreviated pinyin: 银行 yin'hang is also spelt Y H. The dictionary ships
+    # the initials as upper case syllables (ids 1..26), so the same key encoding
+    # holds them and the lookup above finds them without a second asset.
+    initials_keys = 0
+    initials_entries = 0
+    initials_key_set = set()
+    for word, syl, freq in entries:
+        if not 1 <= len(syl) <= MAX_INITIALS:
+            continue
+        initials = [syl_id.get(s[0].upper()) for s in syl]
+        if any(i is None for i in initials):
+            continue
+        key = 0
+        for i in range(MAX_SYLLABLES):
+            key <<= SYLLABLE_BITS
+            if i < len(initials):
+                key |= initials[i]
+        bucket = by_key.get(key)
+        initials_key_set.add(key)
+        if bucket is None:
+            bucket = by_key[key] = (len(initials), [])
+            initials_keys += 1
+        bucket[1].append((word, freq))
+        initials_entries += 1
+    log("initials: %d keys, %d entries (max %d syllables, %d per key)"
+        % (initials_keys, initials_entries, MAX_INITIALS, INITIALS_PER_KEY))
     log("distinct pinyin keys: %d" % len(by_key))
 
     keys = sorted(by_key)
@@ -265,14 +299,17 @@ def pack(entries, out_path, max_per_key=40, min_freq=None, essay=None):
         nsyl, raw_items = by_key[key]
         if min_freq is not None:
             raw_items = [it for it in raw_items if it[1] >= min_freq]
+        # an initial sequence has far more homophones than a full spelling, so
+        # it is cut harder: 20 words is already four screens of candidates
+        cap = INITIALS_PER_KEY if key in initials_key_set else max_per_key
         # ponytail: only the top N homophones are shipped, the tail is noise
         items = sorted(
             raw_items,
             key=lambda it: -(min(0xFFFF, int(0xFFFF * score(it[0], it[1])) + SYLLABLE_BONUS * (nsyl - 1))),
         )
-        if len(items) > max_per_key:
-            dropped += len(items) - max_per_key
-            items = items[:max_per_key]
+        if len(items) > cap:
+            dropped += len(items) - cap
+            items = items[:cap]
         if not items:
             continue
         key_bytes += struct.pack("<Q", key)
