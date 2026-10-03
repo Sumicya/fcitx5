@@ -1,6 +1,7 @@
 package sumicya.fcitx5.ui
 
 import android.content.Context
+import android.text.TextUtils
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -17,6 +18,7 @@ class ClipboardPanel(
 
     private val list = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
     private val outline = Theme.outlineVariant(context)
+    private var shown: List<String> = emptyList()
 
     init {
         orientation = LinearLayout.VERTICAL
@@ -27,6 +29,10 @@ class ClipboardPanel(
     }
 
     fun setItems(items: List<String>) {
+        // the panel is rebuilt every time it opens; with a long clip in the
+        // history that used to mean measuring the whole thing again each time
+        if (items == shown) return
+        shown = items.toList()
         list.removeAllViews()
         if (items.isEmpty()) {
             list.addView(TextView(context).apply {
@@ -48,9 +54,10 @@ class ClipboardPanel(
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         addView(TextView(context).apply {
-            text = item.replace('\n', ' ')
+            text = Preview.of(item)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, Theme.BODY_LARGE)
             maxLines = 2
+            ellipsize = TextUtils.TruncateAt.END
             gravity = Gravity.CENTER_VERTICAL
             setPadding(Theme.dp(context, 16f), Theme.dp(context, 12f), Theme.dp(context, 8f), Theme.dp(context, 12f))
             setOnClickListener { onPick(item) }

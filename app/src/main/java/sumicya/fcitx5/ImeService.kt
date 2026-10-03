@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
 import android.widget.LinearLayout
 import sumicya.fcitx5.data.ClipboardStore
 import sumicya.fcitx5.engine.PinyinEngine
@@ -17,11 +18,45 @@ import sumicya.fcitx5.keyboard.Keys
 import sumicya.fcitx5.ui.CandidateBar
 import sumicya.fcitx5.ui.Panel
 import sumicya.fcitx5.ui.Theme
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 class ImeService : InputMethodService() {
 
     private val engine by lazy { PinyinEngine(this) }
     private val clipboard by lazy { ClipboardStore(this) }
+
+    /**
+     * Writes to the editor, in order, without holding the keyboard's main thread.
+     *
+     * commitText is a blocking binder call: the app inserts the text and lays it
+     * out before the call returns, so pasting a long clip froze the keyboard for
+     * as long as the app took. Long commits run on [edits] instead, and [queued]
+     * keeps whatever is typed while one is in flight behind it rather than
+     * letting it jump ahead.
+     */
+    private val edits = Executors.newSingleThreadExecutor()
+    private val queued = AtomicInteger()
+
+    private fun edit(work: (InputConnection) -> Unit) {
+        val ic = currentInputConnection ?: return
+        if (queued.get() == 0) work(ic) else enqueue(work)
+    }
+
+    private fun enqueue(work: (InputConnection) -> Unit) {
+        val ic = currentInputConnection ?: return
+        queued.incrementAndGet()
+        edits.execute {
+            try {
+                work(ic)
+            } catch (_: Exception) {
+                // the editor can be gone by the time this runs
+            } finally {
+                queued.decrementAndGet()
+            }
+        }
+    }
+
     private var candidates: List<PinyinEngine.Candidate> = emptyList()
     private var wantsChinese = true
     private var fieldOverridden = false
@@ -37,7 +72,8 @@ class ImeService : InputMethodService() {
         keyboard = KeyboardView(this).apply { listener = keyListener }
         panel = Panel(
             this,
-            onPick = { commit(it); showPanel(false) },
+            // the panel closes first: pasting a long clip blocks for a while
+            onPick = { text -> showPanel(false); commit(text) },
             onClose = { showPanel(false) },
         ).apply {
             onPin = { engine.phrases.add(it); showPhrases() }
@@ -108,6 +144,7 @@ class ImeService : InputMethodService() {
 
     override fun onDestroy() {
         engine.save()
+        edits.shutdown()
         super.onDestroy()
     }
 
@@ -168,23 +205,32 @@ class ImeService : InputMethodService() {
 
     private fun pick(index: Int) {
         val word = engine.pick(index) ?: return
-        currentInputConnection?.commitText(word, 1)
+        edit { it.commitText(word, 1) }
         syncComposing()
         updateCandidates()
     }
 
     private fun commit(text: String) {
-        val ic = currentInputConnection ?: return
+        if (currentInputConnection == null) return
         if (engine.isComposing()) {
-            ic.finishComposingText()
+            edit { it.finishComposingText() }
             engine.clear()
         }
-        ic.commitText(text, 1)
+        if (text.length <= SHORT_COMMIT) {
+            edit { it.commitText(text, 1) }
+        } else {
+            enqueue { it.commitText(text, 1) }
+        }
     }
 
     private fun syncComposing() {
-        val ic = currentInputConnection ?: return
-        if (engine.isComposing()) ic.setComposingText(engine.preeditText(), 1) else ic.finishComposingText()
+        if (!engine.isComposing()) {
+            edit { it.finishComposingText() }
+            return
+        }
+        // taken now: through the queue the composing text would be read late
+        val text = engine.preeditText()
+        edit { it.setComposingText(text, 1) }
     }
 
     private fun updateCandidates() {
@@ -199,17 +245,17 @@ class ImeService : InputMethodService() {
             updateCandidates()
             return
         }
-        if (gesture == KeyboardView.Gesture.SWIPE_LEFT) deleteWord() else currentInputConnection?.deleteSurroundingText(1, 0)
+        if (gesture == KeyboardView.Gesture.SWIPE_LEFT) deleteWord() else edit { it.deleteSurroundingText(1, 0) }
     }
 
     private fun onEnter() {
-        val ic = currentInputConnection ?: return
+        if (currentInputConnection == null) return
         // enter commits the raw pinyin: the user wanted letters, not a candidate
         if (engine.isComposing()) {
             val pending = engine.preeditText()
             engine.clear()
-            ic.finishComposingText()
-            ic.commitText(pending, 1)
+            edit { it.finishComposingText() }
+            edit { it.commitText(pending, 1) }
             updateCandidates()
             return
         }
@@ -217,9 +263,9 @@ class ImeService : InputMethodService() {
         val action = info.imeOptions and EditorInfo.IME_MASK_ACTION
         val noEnter = (info.imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION) != 0
         if (!noEnter && action != EditorInfo.IME_ACTION_NONE) {
-            ic.performEditorAction(action)
+            edit { it.performEditorAction(action) }
         } else {
-            ic.commitText("\n", 1)
+            edit { it.commitText("\n", 1) }
         }
     }
 
@@ -287,7 +333,7 @@ class ImeService : InputMethodService() {
         } else {
             n = 1
         }
-        if (n > 0) ic.deleteSurroundingText(n, 0)
+        if (n > 0) edit { it.deleteSurroundingText(n, 0) }
     }
 
     /** The height is a setting, so it is applied again every time the keyboard shows. */
@@ -310,6 +356,9 @@ class ImeService : InputMethodService() {
 
     private companion object {
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
+
+        /** Short enough that committing it inline cannot be felt. */
+        const val SHORT_COMMIT = 4096
         val CN_PUNCTUATION = mapOf(
             ',' to '，', '.' to '。', '?' to '？', '!' to '！',
             ':' to '：', ';' to '；', '(' to '（', ')' to '）',

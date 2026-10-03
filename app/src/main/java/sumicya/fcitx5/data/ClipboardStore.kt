@@ -3,6 +3,8 @@ package sumicya.fcitx5.data
 import android.content.ClipboardManager
 import android.content.Context
 import java.io.File
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Plain text clipboard history. The system only keeps the latest clip, so the
@@ -16,10 +18,17 @@ class ClipboardStore(context: Context) {
     private val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     private val file = File(context.filesDir, FILE)
     private val items = ArrayList<String>()
+    private val writer = Executors.newSingleThreadExecutor()
+    private val generation = AtomicInteger()
+    private val lock = Any()
 
     init {
         if (file.exists()) {
-            file.readLines().forEach { if (it.isNotEmpty()) items.add(ClipLines.unescape(it)) }
+            // streamed: readLines() would hold every clip twice, once as a line
+            // of the file and once unescaped
+            file.useLines { lines ->
+                lines.forEach { if (it.isNotEmpty()) items.add(ClipLines.unescape(it)) }
+            }
         }
     }
 
@@ -40,14 +49,28 @@ class ClipboardStore(context: Context) {
     fun clear() {
         if (items.isEmpty()) return
         items.clear()
-        save()
+        // queued writes hold the old snapshot, and would put it all back
+        generation.incrementAndGet()
+        writeAll(items)
     }
 
+    /**
+     * The write goes to a thread: a history with one long clip in it is
+     * megabytes, and rewriting all of it on the keyboard's main thread is what
+     * makes the clipboard stutter. The list it walks is a snapshot — the strings
+     * are immutable, so the main thread can keep adding to the real one.
+     */
     private fun save() {
+        val snapshot = items.toList()
+        val mine = generation.incrementAndGet()
+        writer.submit { if (generation.get() == mine) writeAll(snapshot) }
+    }
+
+    private fun writeAll(snapshot: List<String>) = synchronized(lock) {
         val tmp = File(file.parentFile, "$FILE.tmp")
         try {
             tmp.printWriter().use { out ->
-                for (item in items) out.println(ClipLines.escape(item))
+                for (item in snapshot) out.println(ClipLines.escape(item))
             }
             tmp.renameTo(file)
         } catch (e: Exception) {
