@@ -20,7 +20,14 @@ class Panel(
     private val clip = ClipboardPanel(context, onPick = { onPick(it) }, onPin = { onPin(it) })
     private val phrase = PhrasePanel(context, onPick = { onPick(it) }, onRemove = { onRemove(it) })
     private val emoji = EmojiPanel(context) { onPick(it) }
-    private val tabs = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+
+    /**
+     * ponytail: parented by the keyboard root, above the candidate bar. It
+     * belongs to the panel but does not sit inside it, and the panel body gets
+     * the row it used to take.
+     */
+    val tabs = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+
     private val tabViews = mutableListOf<TextView>()
     private var tab = 0
 
@@ -46,7 +53,6 @@ class Panel(
             setOnClickListener { onClose() }
             Theme.clickable(this)
         }, LinearLayout.LayoutParams(MATCH, MATCH))
-        addView(tabs, LinearLayout.LayoutParams(MATCH, Theme.dp(context, Theme.TOUCH)))
         addView(FrameLayout(context).apply {
             addView(clip, FrameLayout.LayoutParams(MATCH, MATCH))
             addView(phrase, FrameLayout.LayoutParams(MATCH, MATCH))

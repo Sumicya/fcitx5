@@ -1,12 +1,17 @@
 package sumicya.fcitx5
 
+import android.content.Context
 import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
 import android.os.Build
 import android.text.InputType
+import android.util.Log
+import android.util.DisplayMetrics
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.view.WindowInsets
+import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.widget.LinearLayout
@@ -73,16 +78,21 @@ class ImeService : InputMethodService() {
         panel = Panel(
             this,
             // the panel closes first: pasting a long clip blocks for a while
-            onPick = { text -> showPanel(false); commit(text) },
+            onPick = { text -> showPanel(false); commit(text); updateCandidates() },
             onClose = { showPanel(false) },
         ).apply {
             onPin = { engine.phrases.add(it); showPhrases() }
             onRemove = { engine.phrases.remove(it); showPhrases() }
         }
+        // the panel's tabs sit above the candidates: they are the keyboard's top
+        // row while the panel is open, and the two share the slot so opening it
+        // costs no height
+        root.addView(panel.tabs, LinearLayout.LayoutParams(MATCH, dp(Theme.TOUCH)))
         root.addView(candidateBar, LinearLayout.LayoutParams(MATCH, dp(Theme.TOUCH)))
         root.addView(keyboard, LinearLayout.LayoutParams(MATCH, keyboardHeight()))
         root.addView(panel, LinearLayout.LayoutParams(MATCH, keyboardHeight()))
         panel.visibility = View.GONE
+        panel.tabs.visibility = View.GONE
         updateCandidates()
         return root
     }
@@ -95,32 +105,69 @@ class ImeService : InputMethodService() {
 
     /**
      * Since Android 15 the input view is drawn to the bottom edge and nothing
-     * pads it: the gesture bar would sit on the last row.
+     * pads it: the gesture bar sits on the last row.
      *
-     * The insets handed to the view are useless here — the framework's decor has
-     * already eaten them when it did pad, and they are zero when it did not —
-     * so instead measure how much room is left under the last row and only pay
-     * for the bar when there is none.
+     * Measured, not read from the insets — the framework's decor has already
+     * eaten them when it did pad, and they are zero when it did not. What the
+     * keyboard pays for is the part of the bar really under it, and that is
+     * 48dp with three button navigation, so a capped pad leaves the last row
+     * under the buttons: this is the second attempt at it, the first capped the
+     * pad at 32dp and measured before the window had a size.
      */
     private fun padForNavigationBar() {
-        root.post {
-            val decor = window?.window?.decorView ?: return@post
-            val location = IntArray(2)
-            root.getLocationOnScreen(location)
-            val keptClear = resources.displayMetrics.heightPixels - (location[1] + root.height)
-            val pad = if (keptClear >= dp(8f)) 0 else barHeight(decor).coerceAtMost(dp(32f))
-            if (root.paddingBottom != pad) root.setPadding(0, 0, 0, pad)
+        // the window can still be settling when the first measurement runs; the
+        // pad is an amount and not an adjustment, so measuring again only
+        // confirms it
+        if (root.isLaidOut && !root.isLayoutRequested) {
+            padToNavigationBar()
+            return
+        }
+        root.viewTreeObserver.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
+                root.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                padToNavigationBar()
+            }
+        })
+        root.postDelayed({ padToNavigationBar() }, SETTLE_MS)
+    }
+
+    private fun padToNavigationBar() {
+        val location = IntArray(2)
+        root.getLocationOnScreen(location)
+        val bar = barHeight()
+        val display = displayHeight()
+        // how much room the window leaves below itself: the bar's worth means
+        // the framework already kept clear, none of it means the bar is on the
+        // keys, and the pad is the difference either way
+        val below = display - (location[1] + root.height)
+        val pad = (bar - below).coerceIn(0, bar)
+        Log.d("KEYDEBUG", "inset display=$display bottom=${location[1] + root.height} bar=$bar pad=$pad")
+        if (root.paddingBottom != pad) root.setPadding(0, 0, 0, pad)
+    }
+
+    /** The navigation bar, or the gesture bar where navigation is gestures. */
+    private fun barHeight(): Int {
+        val id = resources.getIdentifier("navigation_bar_height", "dimen", "android")
+        if (id > 0) {
+            val size = resources.getDimensionPixelSize(id)
+            if (size > 0) return size
+        }
+        val insets = window?.window?.decorView?.rootWindowInsets ?: return dp(24f)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            insets.getInsets(WindowInsets.Type.navigationBars()).bottom
+        } else {
+            @Suppress("DEPRECATION")
+            insets.systemWindowInsetBottom
         }
     }
 
     @Suppress("DEPRECATION")
-    private fun barHeight(decor: View): Int {
-        val insets = decor.rootWindowInsets ?: return dp(24f)
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            insets.getInsets(WindowInsets.Type.navigationBars()).bottom
-        } else {
-            insets.systemWindowInsetBottom
-        }
+    private fun displayHeight(): Int {
+        // the real display, system bars included: the window is placed against
+        // that, not against the area an app is allowed to draw in
+        val metrics = DisplayMetrics()
+        (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(metrics)
+        return metrics.heightPixels
     }
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
@@ -132,6 +179,7 @@ class ImeService : InputMethodService() {
         applyMode(info)
         showPanel(false)
         clipboard.refresh()
+        padForNavigationBar()
         updateCandidates()
     }
 
@@ -304,6 +352,10 @@ class ImeService : InputMethodService() {
     private fun showPanel(show: Boolean) {
         panel.visibility = if (show) View.VISIBLE else View.GONE
         keyboard.visibility = if (show) View.GONE else View.VISIBLE
+        // one bar or the other, never both: candidates mean nothing while the
+        // panel is open, and the tabs take their place
+        panel.tabs.visibility = if (show) View.VISIBLE else View.GONE
+        candidateBar.visibility = if (show) View.GONE else View.VISIBLE
         if (show) {
             clipboard.refresh()
             panel.setClips(clipboard.all())
@@ -359,6 +411,9 @@ class ImeService : InputMethodService() {
 
         /** Short enough that committing it inline cannot be felt. */
         const val SHORT_COMMIT = 4096
+
+        /** Long enough for the window to be where it is going to stay. */
+        const val SETTLE_MS = 300L
         val CN_PUNCTUATION = mapOf(
             ',' to '，', '.' to '。', '?' to '？', '!' to '！',
             ':' to '：', ';' to '；', '(' to '（', ')' to '）',
